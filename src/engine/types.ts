@@ -2,6 +2,18 @@ export type GamePhase = 'menu' | 'countdown' | 'racing' | 'finished';
 
 export type ItemType = 'boost' | 'shield' | 'banana' | 'missile';
 
+export type GameMode = 'grandprix' | 'timeattack';
+
+export type SplitScreenLayout = 'horizontal' | 'vertical';
+
+export interface GameConfig {
+  mode: GameMode;
+  playerCount: 1 | 2;
+  splitLayout: SplitScreenLayout;
+  selectedCarIdP1: number;
+  selectedCarIdP2: number;
+}
+
 export interface Car {
   id: number;
   name: string;
@@ -16,6 +28,7 @@ export interface Car {
   handling: number;
   friction: number;
   isPlayer: boolean;
+  playerIndex: 0 | 1 | -1;
   lap: number;
   checkpoint: number;
   bestLapTime: number;
@@ -34,6 +47,14 @@ export interface Car {
   aiTargetIdx: number;
   aiSkill: number;
   itemCooldown: number;
+}
+
+export interface SplitViewport {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  camera: Camera;
 }
 
 export interface CarTemplate {

@@ -1,5 +1,5 @@
 import type { Car, InputState, Track } from './types';
-import { clamp, angleDiff, pointToSegmentDist } from '../utils/math';
+import { clamp, pointToSegmentDist } from '../utils/math';
 
 export const updateCarPhysics = (
   car: Car,

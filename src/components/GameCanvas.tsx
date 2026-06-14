@@ -3,6 +3,7 @@ import { useGameStore, TOTAL_LAPS } from '../store/gameStore';
 import { Renderer } from '../engine/renderer';
 import type {
   Car, TireMark, Particle, ItemBoxInstance, BananaInstance, MissileInstance, Camera, InputState,
+  GameMode, SplitScreenLayout,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
 import { MAIN_TRACK, getStartPositions, getItemBoxPositions } from '../engine/track';
@@ -12,7 +13,7 @@ import {
 } from '../engine/physics';
 import { updateAI } from '../engine/ai';
 import {
-  createItemBoxes, updateItemBoxes, tryCollectItemBox, useItem,
+  createItemBoxes, updateItemBoxes, tryCollectItemBox, activateItem,
   updateBananas, updateMissiles, updateParticles,
 } from '../engine/items';
 import { lerp, clamp } from '../utils/math';
@@ -23,7 +24,11 @@ export default function GameCanvas() {
   const countdown = useGameStore((s) => s.countdown);
   const setCountdown = useGameStore((s) => s.setCountdown);
   const setPhase = useGameStore((s) => s.setPhase);
-  const selectedCarId = useGameStore((s) => s.selectedCarId);
+  const gameMode = useGameStore((s) => s.gameMode);
+  const playerCount = useGameStore((s) => s.playerCount);
+  const splitLayout = useGameStore((s) => s.splitLayout);
+  const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
+  const selectedCarIdP2 = useGameStore((s) => s.selectedCarIdP2);
   const finishRace = useGameStore((s) => s.finishRace);
   const updateRaceTime = useGameStore((s) => s.updateRaceTime);
 
@@ -34,7 +39,7 @@ export default function GameCanvas() {
     itemBoxes: ItemBoxInstance[];
     bananas: BananaInstance[];
     missiles: MissileInstance[];
-    camera: Camera;
+    cameras: Camera[];
     renderer: Renderer | null;
     input: InputManager | null;
     lastTime: number;
@@ -46,6 +51,9 @@ export default function GameCanvas() {
     rankings: number[];
     lastFrameTs: number;
     globalTime: number;
+    gameMode: GameMode;
+    playerCount: 1 | 2;
+    splitLayout: SplitScreenLayout;
   } | null>(null);
 
   if (!stateRef.current) {
@@ -56,7 +64,10 @@ export default function GameCanvas() {
       itemBoxes: [],
       bananas: [],
       missiles: [],
-      camera: { x: 1000, y: 800, zoom: 1, shake: 0 },
+      cameras: [
+        { x: 1000, y: 800, zoom: 1, shake: 0 },
+        { x: 1000, y: 800, zoom: 1, shake: 0 },
+      ],
       renderer: null,
       input: null,
       lastTime: 0,
@@ -68,6 +79,9 @@ export default function GameCanvas() {
       rankings: [],
       lastFrameTs: 0,
       globalTime: 0,
+      gameMode: 'grandprix',
+      playerCount: 1,
+      splitLayout: 'horizontal',
     };
   }
 
@@ -79,6 +93,9 @@ export default function GameCanvas() {
     ctx.imageSmoothingEnabled = false;
 
     const st = stateRef.current!;
+    st.gameMode = gameMode;
+    st.playerCount = playerCount;
+    st.splitLayout = splitLayout;
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -100,12 +117,29 @@ export default function GameCanvas() {
     st.input = input;
 
     const initializeCars = () => {
-      const aiIds = CAR_TEMPLATES.map((c) => c.id).filter((id) => id !== selectedCarId).slice(0, 3);
-      const allCarIds = [selectedCarId, ...aiIds];
-      const starts = getStartPositions(MAIN_TRACK, allCarIds.length);
+      let carIds: number[] = [];
+      let isPlayerFlags: boolean[] = [];
+      let playerIndices: (0 | 1 | -1)[] = [];
+
+      if (st.gameMode === 'timeattack') {
+        carIds = [selectedCarIdP1];
+        isPlayerFlags = [true];
+        playerIndices = [0];
+      } else if (st.playerCount === 2) {
+        carIds = [selectedCarIdP1, selectedCarIdP2];
+        isPlayerFlags = [true, true];
+        playerIndices = [0, 1];
+      } else {
+        const aiIds = CAR_TEMPLATES.map((c) => c.id).filter((id) => id !== selectedCarIdP1).slice(0, 3);
+        carIds = [selectedCarIdP1, ...aiIds];
+        isPlayerFlags = carIds.map((_, i) => i === 0);
+        playerIndices = carIds.map((_, i) => (i === 0 ? 0 : -1) as (0 | 1 | -1));
+      }
+
+      const starts = getStartPositions(MAIN_TRACK, carIds.length);
       const aiSkills = [0, 0.82, 0.68, 0.76];
 
-      st.cars = allCarIds.map((tplId, i) => {
+      st.cars = carIds.map((tplId, i) => {
         const tpl = getCarTemplate(tplId);
         const pos = starts[i];
         return {
@@ -121,7 +155,8 @@ export default function GameCanvas() {
           acceleration: tpl.acceleration,
           handling: tpl.handling,
           friction: tpl.friction,
-          isPlayer: i === 0,
+          isPlayer: isPlayerFlags[i],
+          playerIndex: playerIndices[i],
           lap: 0,
           checkpoint: -1,
           bestLapTime: Infinity,
@@ -138,25 +173,30 @@ export default function GameCanvas() {
           driftAngle: 0,
           tireMarkTimer: 0,
           aiTargetIdx: 0,
-          aiSkill: i === 0 ? 0 : aiSkills[i] ?? 0.7,
+          aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
         };
       });
 
       st.tireMarks = [];
       st.particles = [];
-      st.itemBoxes = createItemBoxes(MAIN_TRACK);
-      getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
-        if (st.itemBoxes[i]) {
-          st.itemBoxes[i].x = p.x;
-          st.itemBoxes[i].y = p.y;
-        }
-      });
       st.bananas = [];
       st.missiles = [];
       st.raceFinished = false;
       st.rankings = [];
-      st.camera.shake = 0;
+      st.cameras.forEach((c) => { c.shake = 0; });
+
+      if (st.gameMode !== 'timeattack') {
+        st.itemBoxes = createItemBoxes(MAIN_TRACK);
+        getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
+          if (st.itemBoxes[i]) {
+            st.itemBoxes[i].x = p.x;
+            st.itemBoxes[i].y = p.y;
+          }
+        });
+      } else {
+        st.itemBoxes = [];
+      }
     };
 
     initializeCars();
@@ -165,14 +205,76 @@ export default function GameCanvas() {
     st.initialized = true;
     setCountdown(3);
 
-    input.onSpacePress = () => {
+    input.onSpacePress = (playerIdx: 0 | 1) => {
       if (useGameStore.getState().phase !== 'racing') return;
-      const player = st.cars.find((c) => c.isPlayer);
+      const player = st.cars.find((c) => c.isPlayer && c.playerIndex === playerIdx);
       if (!player || player.finished) return;
-      const used = useItem(player, st.cars, st.bananas, st.missiles, st.particles);
+      if (st.gameMode === 'timeattack') return;
+      const used = activateItem(player, st.cars, st.bananas, st.missiles, st.particles);
       if (used === 'boost') {
-        st.camera.shake = 8;
+        st.cameras[playerIdx].shake = 8;
       }
+    };
+
+    const getInputForCar = (car: Car): InputState => {
+      if (!car.isPlayer) {
+        return updateAI(car, MAIN_TRACK, 16);
+      }
+      if (car.playerIndex === 0) {
+        return st.input!.stateP1;
+      }
+      return st.input!.stateP2;
+    };
+
+    const updateCameraForCar = (car: Car, camera: Camera) => {
+      const targetZoom = 1 - clamp(Math.abs(car.speed) / (car.maxSpeed * 2), 0, 0.12);
+      camera.zoom = lerp(camera.zoom, targetZoom, 0.05);
+      const speedFactor = Math.abs(car.speed) / car.maxSpeed;
+      const lookAhead = 80 * speedFactor;
+      const tx = car.x + Math.cos(car.angle) * lookAhead;
+      const ty = car.y + Math.sin(car.angle) * lookAhead;
+      camera.x = lerp(camera.x, tx, 0.1);
+      camera.y = lerp(camera.y, ty, 0.1);
+      camera.shake = Math.max(0, camera.shake - 0.5);
+    };
+
+    const renderScene = (camera: Camera, ts: number) => {
+      const renderer = st.renderer!;
+      renderer.beginCamera(camera);
+      renderer.drawGrassTexture(MAIN_TRACK);
+      renderer.drawTrack(MAIN_TRACK, ts);
+      renderer.drawTireMarks(st.tireMarks);
+      if (st.gameMode !== 'timeattack') {
+        renderer.drawItemBoxes(st.itemBoxes, ts);
+        renderer.drawBananas(st.bananas);
+        renderer.drawMissiles(st.missiles);
+      }
+      const sortedForDraw = [...st.cars].sort((a, b) => a.y - b.y);
+      for (const car of sortedForDraw) {
+        renderer.drawCar(car, ts);
+      }
+      renderer.drawParticles(st.particles);
+      renderer.endCamera();
+      renderer.drawVignette();
+      renderer.drawScanlines(ts);
+    };
+
+    const getViewports = (): { x: number; y: number; width: number; height: number }[] => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (st.playerCount === 1 || st.gameMode === 'timeattack') {
+        return [{ x: 0, y: 0, width: w, height: h }];
+      }
+      if (st.splitLayout === 'horizontal') {
+        return [
+          { x: 0, y: 0, width: w, height: h / 2 },
+          { x: 0, y: h / 2, width: w, height: h / 2 },
+        ];
+      }
+      return [
+        { x: 0, y: 0, width: w / 2, height: h },
+        { x: w / 2, y: 0, width: w / 2, height: h },
+      ];
     };
 
     let rafId = 0;
@@ -198,7 +300,7 @@ export default function GameCanvas() {
             st.cars.forEach((c) => { c.currentLapStartTime = ts; });
           }
           setCountdown(st.countdownValue);
-          st.camera.shake = 6;
+          st.cameras.forEach((c) => { c.shake = 6; });
         }
       }
 
@@ -208,15 +310,10 @@ export default function GameCanvas() {
 
         for (let i = 0; i < st.cars.length; i++) {
           const car = st.cars[i];
-          const inp: InputState = car.isPlayer
-            ? input.state
-            : updateAI(car, MAIN_TRACK, dt);
+          const inp: InputState = getInputForCar(car);
 
-          if (car.isPlayer && inp.space && car.currentItem && !car.finished) {
-            // handled via onSpacePress edge-trigger for player
-          }
-          if (!car.isPlayer && inp.space) {
-            useItem(car, st.cars, st.bananas, st.missiles, st.particles);
+          if (!car.isPlayer && inp.space && st.gameMode !== 'timeattack') {
+            activateItem(car, st.cars, st.bananas, st.missiles, st.particles);
           }
 
           if (car.itemCooldown > 0) car.itemCooldown -= dt;
@@ -313,11 +410,11 @@ export default function GameCanvas() {
                   st.rankings.push(car.id);
                 }
                 if (car.isPlayer) {
-                  st.camera.shake = 12;
+                  st.cameras[car.playerIndex].shake = 12;
                 }
                 const allFinished = st.rankings.length >= st.cars.length;
-                const playerFinished = st.rankings.includes(0);
-                if (!st.raceFinished && (allFinished || playerFinished)) {
+                const anyPlayerFinished = st.cars.some((c) => c.isPlayer && c.finished);
+                if (!st.raceFinished && (allFinished || anyPlayerFinished)) {
                   st.raceFinished = true;
                   setTimeout(() => {
                     const finalRank = [...st.rankings];
@@ -326,20 +423,21 @@ export default function GameCanvas() {
                     }
                     const winner = finalRank[0];
                     finishRace(winner, finalRank);
-                  }, car.isPlayer ? 1500 : 800);
+                  }, 1500);
                 }
               }
             }
           }
         }
 
-        for (const car of st.cars) {
-          if (!car.finished) tryCollectItemBox(car, st.itemBoxes);
+        if (st.gameMode !== 'timeattack') {
+          for (const car of st.cars) {
+            if (!car.finished) tryCollectItemBox(car, st.itemBoxes);
+          }
+          updateItemBoxes(st.itemBoxes, dt);
+          updateBananas(st.bananas, st.cars, st.particles, dt);
+          updateMissiles(st.missiles, st.cars, st.particles, dt);
         }
-
-        updateItemBoxes(st.itemBoxes, dt);
-        updateBananas(st.bananas, st.cars, st.particles, dt);
-        updateMissiles(st.missiles, st.cars, st.particles, dt);
         updateParticles(st.particles, dt);
 
         for (let i = st.tireMarks.length - 1; i >= 0; i--) {
@@ -348,40 +446,43 @@ export default function GameCanvas() {
         }
       }
 
-      const playerCar = st.cars.find((c) => c.isPlayer);
-      if (playerCar) {
-        const targetZoom = 1 - clamp(Math.abs(playerCar.speed) / (playerCar.maxSpeed * 2), 0, 0.12);
-        st.camera.zoom = lerp(st.camera.zoom, targetZoom, 0.05);
-        const speedFactor = Math.abs(playerCar.speed) / playerCar.maxSpeed;
-        const lookAhead = 80 * speedFactor;
-        const tx = playerCar.x + Math.cos(playerCar.angle) * lookAhead;
-        const ty = playerCar.y + Math.sin(playerCar.angle) * lookAhead;
-        st.camera.x = lerp(st.camera.x, tx, 0.1);
-        st.camera.y = lerp(st.camera.y, ty, 0.1);
-        st.camera.shake = Math.max(0, st.camera.shake - 0.5);
+      for (const car of st.cars) {
+        if (car.isPlayer && car.playerIndex >= 0) {
+          updateCameraForCar(car, st.cameras[car.playerIndex]);
+        }
       }
 
       const renderer = st.renderer;
       renderer.clear();
-      renderer.beginCamera(st.camera);
-      renderer.drawGrassTexture(MAIN_TRACK);
-      renderer.drawTrack(MAIN_TRACK, ts);
-      renderer.drawTireMarks(st.tireMarks);
-      renderer.drawItemBoxes(st.itemBoxes, ts);
-      renderer.drawBananas(st.bananas);
-      renderer.drawMissiles(st.missiles);
 
-      const sortedForDraw = [...st.cars].sort((a, b) => a.y - b.y);
-      for (const car of sortedForDraw) {
-        renderer.drawCar(car, ts);
+      const viewports = getViewports();
+      const playerCars = st.cars.filter((c) => c.isPlayer);
+
+      for (let vIdx = 0; vIdx < viewports.length; vIdx++) {
+        const vp = viewports[vIdx];
+        const camIdx = playerCars[vIdx]?.playerIndex ?? 0;
+        const camera = st.cameras[camIdx];
+        const playerCar = playerCars[vIdx];
+
+        renderer.setViewport(vp);
+        renderer.clearViewport();
+        renderScene(camera, ts);
+
+        if (currentPhase === 'countdown') {
+          renderer.drawCountdown(st.countdownValue, ts);
+        }
+
+        if (viewports.length > 1 && playerCar) {
+          const indX = 10;
+          const indY = 10;
+          renderer.drawPlayerIndicator(indX, indY, playerCar.playerIndex as 0 | 1);
+        }
+
+        renderer.restoreViewport();
       }
-      renderer.drawParticles(st.particles);
-      renderer.endCamera();
-      renderer.drawVignette();
-      renderer.drawScanlines(ts);
 
-      if (currentPhase === 'countdown') {
-        renderer.drawCountdown(st.countdownValue, ts);
+      if (viewports.length > 1) {
+        renderer.drawSplitDivider(st.splitLayout);
       }
 
       if (phase !== 'finished') {
@@ -397,12 +498,15 @@ export default function GameCanvas() {
       window.removeEventListener('resize', resize);
       input.destroy();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCarId]);
+  }, [selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, splitLayout]);
 
   useEffect(() => {
     if (phase === 'countdown' && stateRef.current?.initialized) {
       const st = stateRef.current;
+      st.gameMode = gameMode;
+      st.playerCount = playerCount;
+      st.splitLayout = splitLayout;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -419,52 +523,76 @@ export default function GameCanvas() {
       if (st.renderer) st.renderer.resize(w, h);
       else st.renderer = new Renderer(ctx, w, h);
 
-      const initializeCars = () => {
-        const aiIds = CAR_TEMPLATES.map((c) => c.id).filter((id) => id !== selectedCarId).slice(0, 3);
-        const allCarIds = [selectedCarId, ...aiIds];
-        const starts = getStartPositions(MAIN_TRACK, allCarIds.length);
-        const aiSkills = [0, 0.82, 0.68, 0.76];
+      let carIds: number[] = [];
+      let isPlayerFlags: boolean[] = [];
+      let playerIndices: (0 | 1 | -1)[] = [];
 
-        st.cars = allCarIds.map((tplId, i) => {
-          const tpl = getCarTemplate(tplId);
-          const pos = starts[i];
-          return {
-            id: i,
-            name: tpl.name,
-            color: tpl.color,
-            colorDark: tpl.colorDark,
-            x: pos.x,
-            y: pos.y,
-            angle: pos.angle,
-            speed: 0,
-            maxSpeed: tpl.maxSpeed,
-            acceleration: tpl.acceleration,
-            handling: tpl.handling,
-            friction: tpl.friction,
-            isPlayer: i === 0,
-            lap: 0,
-            checkpoint: -1,
-            bestLapTime: Infinity,
-            currentLapStartTime: 0,
-            totalTime: 0,
-            finished: false,
-            finishTime: 0,
-            hasShield: false,
-            shieldTime: 0,
-            boostTime: 0,
-            spinTime: 0,
-            currentItem: null,
-            drifting: false,
-            driftAngle: 0,
-            tireMarkTimer: 0,
-            aiTargetIdx: 0,
-            aiSkill: i === 0 ? 0 : aiSkills[i] ?? 0.7,
-            itemCooldown: 0,
-          };
-        });
+      if (st.gameMode === 'timeattack') {
+        carIds = [selectedCarIdP1];
+        isPlayerFlags = [true];
+        playerIndices = [0];
+      } else if (st.playerCount === 2) {
+        carIds = [selectedCarIdP1, selectedCarIdP2];
+        isPlayerFlags = [true, true];
+        playerIndices = [0, 1];
+      } else {
+        const aiIds = CAR_TEMPLATES.map((c) => c.id).filter((id) => id !== selectedCarIdP1).slice(0, 3);
+        carIds = [selectedCarIdP1, ...aiIds];
+        isPlayerFlags = carIds.map((_, i) => i === 0);
+        playerIndices = carIds.map((_, i) => (i === 0 ? 0 : -1) as (0 | 1 | -1));
+      }
 
-        st.tireMarks = [];
-        st.particles = [];
+      const starts = getStartPositions(MAIN_TRACK, carIds.length);
+      const aiSkills = [0, 0.82, 0.68, 0.76];
+
+      st.cars = carIds.map((tplId, i) => {
+        const tpl = getCarTemplate(tplId);
+        const pos = starts[i];
+        return {
+          id: i,
+          name: tpl.name,
+          color: tpl.color,
+          colorDark: tpl.colorDark,
+          x: pos.x,
+          y: pos.y,
+          angle: pos.angle,
+          speed: 0,
+          maxSpeed: tpl.maxSpeed,
+          acceleration: tpl.acceleration,
+          handling: tpl.handling,
+          friction: tpl.friction,
+          isPlayer: isPlayerFlags[i],
+          playerIndex: playerIndices[i],
+          lap: 0,
+          checkpoint: -1,
+          bestLapTime: Infinity,
+          currentLapStartTime: 0,
+          totalTime: 0,
+          finished: false,
+          finishTime: 0,
+          hasShield: false,
+          shieldTime: 0,
+          boostTime: 0,
+          spinTime: 0,
+          currentItem: null,
+          drifting: false,
+          driftAngle: 0,
+          tireMarkTimer: 0,
+          aiTargetIdx: 0,
+          aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
+          itemCooldown: 0,
+        };
+      });
+
+      st.tireMarks = [];
+      st.particles = [];
+      st.bananas = [];
+      st.missiles = [];
+      st.raceFinished = false;
+      st.rankings = [];
+      st.cameras.forEach((c) => { c.shake = 0; });
+
+      if (st.gameMode !== 'timeattack') {
         st.itemBoxes = createItemBoxes(MAIN_TRACK);
         getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
           if (st.itemBoxes[i]) {
@@ -472,19 +600,15 @@ export default function GameCanvas() {
             st.itemBoxes[i].y = p.y;
           }
         });
-        st.bananas = [];
-        st.missiles = [];
-        st.raceFinished = false;
-        st.rankings = [];
-        st.camera.shake = 0;
-      };
-      initializeCars();
+      } else {
+        st.itemBoxes = [];
+      }
+
       st.countdownValue = 3;
       st.countdownTimer = 0;
       setCountdown(3);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase === 'countdown' ? 'countdown-start' : '']);
+  }, [phase === 'countdown' ? 'countdown-start' : '', gameMode, playerCount, splitLayout, selectedCarIdP1, selectedCarIdP2]);
 
   void countdown;
 

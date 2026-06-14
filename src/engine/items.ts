@@ -35,7 +35,7 @@ export const updateItemBoxes = (boxes: ItemBoxInstance[], dt: number) => {
   }
 };
 
-export const useItem = (
+export const activateItem = (
   car: Car,
   allCars: Car[],
   bananas: BananaInstance[],
@@ -45,6 +45,9 @@ export const useItem = (
   const item = car.currentItem;
   if (!item) return null;
   car.currentItem = null;
+
+  let backAngle: number;
+  let target: Car | null;
 
   switch (item) {
     case 'boost':
@@ -62,7 +65,7 @@ export const useItem = (
       car.shieldTime = 8000;
       break;
     case 'banana':
-      const backAngle = car.angle + Math.PI;
+      backAngle = car.angle + Math.PI;
       bananas.push({
         x: car.x + Math.cos(backAngle) * 25,
         y: car.y + Math.sin(backAngle) * 25,
@@ -72,7 +75,7 @@ export const useItem = (
       });
       break;
     case 'missile':
-      const target = findCarAhead(car, allCars);
+      target = findCarAhead(car, allCars);
       if (target) {
         missiles.push({
           x: car.x, y: car.y,

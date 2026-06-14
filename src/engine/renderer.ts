@@ -18,16 +18,38 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private w: number;
   private h: number;
+  private viewportW: number;
+  private viewportH: number;
 
   constructor(ctx: CanvasRenderingContext2D, w: number, h: number) {
     this.ctx = ctx;
     this.w = w;
     this.h = h;
+    this.viewportW = w;
+    this.viewportH = h;
   }
 
   resize(w: number, h: number) {
     this.w = w;
     this.h = h;
+    this.viewportW = w;
+    this.viewportH = h;
+  }
+
+  setViewport(vp: { x: number; y: number; width: number; height: number }) {
+    this.viewportW = vp.width;
+    this.viewportH = vp.height;
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(vp.x, vp.y, vp.width, vp.height);
+    this.ctx.clip();
+    this.ctx.translate(vp.x, vp.y);
+  }
+
+  restoreViewport() {
+    this.ctx.restore();
+    this.viewportW = this.w;
+    this.viewportH = this.h;
   }
 
   clear() {
@@ -36,12 +58,49 @@ export class Renderer {
     ctx.fillRect(0, 0, this.w, this.h);
   }
 
+  clearViewport() {
+    const ctx = this.ctx;
+    ctx.fillStyle = GRASS_COLOR;
+    ctx.fillRect(0, 0, this.viewportW, this.viewportH);
+  }
+
+  drawSplitDivider(layout: 'horizontal' | 'vertical') {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = '#000000';
+    if (layout === 'horizontal') {
+      ctx.fillRect(0, this.h / 2 - 2, this.w, 4);
+    } else {
+      ctx.fillRect(this.w / 2 - 2, 0, 4, this.h);
+    }
+    ctx.restore();
+  }
+
+  drawPlayerIndicator(x: number, y: number, playerIdx: 0 | 1) {
+    const ctx = this.ctx;
+    ctx.save();
+    const color = playerIdx === 0 ? '#00ff88' : '#ff3366';
+    const label = `P${playerIdx + 1}`;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(x, y, 60, 24);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, 60, 24);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 12px "Press Start 2P", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + 30, y + 12);
+    ctx.restore();
+  }
+
   beginCamera(cam: Camera) {
     const ctx = this.ctx;
     ctx.save();
     const shakeX = cam.shake > 0 ? (Math.random() - 0.5) * cam.shake : 0;
     const shakeY = cam.shake > 0 ? (Math.random() - 0.5) * cam.shake : 0;
-    ctx.translate(this.w / 2 + shakeX, this.h / 2 + shakeY);
+    ctx.translate(this.viewportW / 2 + shakeX, this.viewportH / 2 + shakeY);
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
   }
@@ -383,25 +442,57 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  drawVignette() {
+    const ctx = this.ctx;
+    const w = this.viewportW;
+    const h = this.viewportH;
+    const grad = ctx.createRadialGradient(
+      w / 2, h / 2, Math.min(w, h) * 0.3,
+      w / 2, h / 2, Math.max(w, h) * 0.8
+    );
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  drawScanlines(time: number) {
+    const ctx = this.ctx;
+    const w = this.viewportW;
+    const h = this.viewportH;
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#000000';
+    for (let y = 0; y < h; y += 4) {
+      ctx.fillRect(0, y, w, 2);
+    }
+    ctx.globalAlpha = 0.04;
+    const barY = (time * 0.2) % h;
+    ctx.fillRect(0, barY, w, 60);
+    ctx.restore();
+  }
+
   drawCountdown(num: number, time: number) {
     const ctx = this.ctx;
+    const w = this.viewportW;
+    const h = this.viewportH;
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, this.w, this.h);
+    ctx.fillRect(0, 0, w, h);
     const scale = 1 + 0.15 * Math.sin(time * 0.03);
-    ctx.translate(this.w / 2, this.h / 2);
+    ctx.translate(w / 2, h / 2);
     ctx.scale(scale, scale);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     if (num > 0) {
-      ctx.font = 'bold 180px "Press Start 2P", "Courier New", monospace';
+      ctx.font = 'bold 120px "Press Start 2P", "Courier New", monospace';
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#ff3366';
       ctx.lineWidth = 8;
       ctx.strokeText(String(num), 0, 0);
       ctx.fillText(String(num), 0, 0);
     } else {
-      ctx.font = 'bold 120px "Press Start 2P", "Courier New", monospace';
+      ctx.font = 'bold 80px "Press Start 2P", "Courier New", monospace';
       ctx.fillStyle = '#00ff88';
       ctx.strokeStyle = '#008844';
       ctx.lineWidth = 8;
@@ -409,32 +500,6 @@ export class Renderer {
       ctx.fillText('GO!', 0, 0);
     }
     ctx.restore();
-  }
-
-  drawScanlines(time: number) {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = '#000000';
-    for (let y = 0; y < this.h; y += 4) {
-      ctx.fillRect(0, y, this.w, 2);
-    }
-    ctx.globalAlpha = 0.04;
-    const barY = (time * 0.2) % this.h;
-    ctx.fillRect(0, barY, this.w, 60);
-    ctx.restore();
-  }
-
-  drawVignette() {
-    const ctx = this.ctx;
-    const grad = ctx.createRadialGradient(
-      this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.3,
-      this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.8
-    );
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.55)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, this.w, this.h);
   }
 }
 

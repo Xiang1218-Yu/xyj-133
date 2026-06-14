@@ -92,8 +92,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   customizeTarget: 1,
 
   setPhase: (p) => set({ phase: p }),
-  selectCarP1: (id) => set({ selectedCarIdP1: id }),
-  selectCarP2: (id) => set({ selectedCarIdP2: id }),
+  selectCarP1: (id) => set({ selectedCarIdP1: id, customizationP1: createDefaultCustomization(CAR_TEMPLATES[id]) }),
+  selectCarP2: (id) => set({ selectedCarIdP2: id, customizationP2: createDefaultCustomization(CAR_TEMPLATES[id]) }),
   setGameMode: (mode) => set({ gameMode: mode }),
   setPlayerCount: (count) => set({ playerCount: count }),
   setSplitLayout: (layout) => set({ splitLayout: layout }),

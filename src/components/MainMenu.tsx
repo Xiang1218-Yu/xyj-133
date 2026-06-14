@@ -1,6 +1,6 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
-import type { GameMode, WeatherType, TimeOfDay } from '../engine/types';
+import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern } from '../engine/types';
 import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette } from 'lucide-react';
 
 export default function MainMenu() {
@@ -20,6 +20,8 @@ export default function MainMenu() {
   const setTimeOfDay = useGameStore((s) => s.setTimeOfDay);
   const resetForCountdown = useGameStore((s) => s.resetForCountdown);
   const openCustomizer = useGameStore((s) => s.openCustomizer);
+  const customizationP1 = useGameStore((s) => s.customizationP1);
+  const customizationP2 = useGameStore((s) => s.customizationP2);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -49,16 +51,73 @@ export default function MainMenu() {
     );
   };
 
-  const CarSelector = ({ selectedId, onSelect, label, color, playerIdx }: {
+  const CarSelector = ({ selectedId, onSelect, label, color, playerIdx, customization }: {
     selectedId: number;
     onSelect: (id: number) => void;
     label: string;
     color: string;
     playerIdx: 1 | 2;
+    customization: CarCustomization;
   }) => {
     const car = CAR_TEMPLATES[selectedId];
     const prev = () => onSelect((selectedId - 1 + CAR_TEMPLATES.length) % CAR_TEMPLATES.length);
     const next = () => onSelect((selectedId + 1) % CAR_TEMPLATES.length);
+
+    const darkenColor = (hex: string, amount: number = 0.35): string => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      const dr = Math.max(0, Math.floor(r * (1 - amount)));
+      const dg = Math.max(0, Math.floor(g * (1 - amount)));
+      const db = Math.max(0, Math.floor(b * (1 - amount)));
+      return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`;
+    };
+
+    const bodyDark = darkenColor(customization.bodyColor, 0.3);
+    const displayColor = customization.bodyColor;
+
+    const renderStripe = (pattern: StripePattern, stripeColor: string) => {
+      if (pattern === 'none' || !customization.stripeEnabled) return null;
+      if (pattern === 'single') {
+        return <rect x="4" y="13" width="32" height="2" fill={stripeColor} />;
+      }
+      if (pattern === 'double') {
+        return (
+          <g>
+            <rect x="4" y="10" width="32" height="2" fill={stripeColor} />
+            <rect x="4" y="17" width="32" height="2" fill={stripeColor} />
+          </g>
+        );
+      }
+      if (pattern === 'checker') {
+        const cells = [];
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 16; col++) {
+            if ((row + col) % 2 === 0) {
+              cells.push(
+                <rect key={`${row}-${col}`} x={5 + col * 2} y={9 + row} width="2" height="1" fill={stripeColor} />
+              );
+            }
+          }
+        }
+        return <g>{cells}</g>;
+      }
+      if (pattern === 'flame') {
+        return (
+          <g>
+            <path
+              d="M 4 13 L 8 12 L 10 8 L 14 12 L 18 9 L 22 13 L 26 10 L 30 14 L 36 12 L 36 16 L 4 16 Z"
+              fill={stripeColor}
+            />
+            <path
+              d="M 4 14 L 8 13 L 10 11 L 14 13 L 18 11.5 L 22 14 L 26 12 L 30 14.5 L 36 13 L 36 15 L 4 15 Z"
+              fill={darkenColor(stripeColor, 0.2)}
+            />
+          </g>
+        );
+      }
+      return null;
+    };
 
     return (
       <div className="flex-1 max-w-md">
@@ -78,13 +137,13 @@ export default function MainMenu() {
             className="flex-1 p-3 md:p-5 text-center border-4 transition-all"
             style={{
               background: '#12122a',
-              borderColor: car.color,
-              boxShadow: `0 0 20px ${car.color}55, 4px 4px 0 #000000`,
+              borderColor: displayColor,
+              boxShadow: `0 0 20px ${displayColor}55, 4px 4px 0 #000000`,
             }}
           >
             <div
               className="text-lg md:text-2xl mb-2 tracking-widest"
-              style={{ color: car.color, textShadow: `2px 2px 0 ${car.colorDark}` }}
+              style={{ color: displayColor, textShadow: `2px 2px 0 ${bodyDark}` }}
             >
               {car.name}
             </div>
@@ -94,20 +153,33 @@ export default function MainMenu() {
                 style={{ imageRendering: 'pixelated' }}
               >
                 <svg viewBox="0 0 40 28" className="w-full h-full">
-                  <rect x="2" y="8" width="4" height="3" fill="#111" />
-                  <rect x="2" y="17" width="4" height="3" fill="#111" />
-                  <rect x="34" y="8" width="4" height="3" fill="#111" />
-                  <rect x="34" y="17" width="4" height="3" fill="#111" />
-                  <rect x="4" y="6" width="32" height="18" fill={car.color} />
-                  <rect x="4" y="6" width="32" height="3" fill={car.colorDark} />
-                  <rect x="4" y="21" width="32" height="3" fill={car.colorDark} />
-                  <rect x="4" y="6" width="5" height="18" fill={car.colorDark} />
+                  <rect x="2" y="8" width="4" height="3" fill={customization.wheelColor} />
+                  <rect x="2" y="17" width="4" height="3" fill={customization.wheelColor} />
+                  <rect x="34" y="8" width="4" height="3" fill={customization.wheelColor} />
+                  <rect x="34" y="17" width="4" height="3" fill={customization.wheelColor} />
+                  <rect x="4" y="6" width="32" height="18" fill={customization.bodyColor} />
+                  <rect x="4" y="6" width="32" height="3" fill={bodyDark} />
+                  <rect x="4" y="21" width="32" height="3" fill={bodyDark} />
+                  <rect x="4" y="6" width="5" height="18" fill={bodyDark} />
+                  {renderStripe(customization.stripePattern, customization.stripeColor)}
                   <rect x="18" y="8" width="12" height="14" fill="#223344" />
                   <rect x="20" y="10" width="8" height="10" fill="#44aadd" />
                   <rect x="32" y="10" width="3" height="3" fill="#ffcc33" />
                   <rect x="32" y="15" width="3" height="3" fill="#ffcc33" />
                   <rect x="5" y="10" width="3" height="3" fill="#ff4444" />
                   <rect x="5" y="15" width="3" height="3" fill="#ff4444" />
+                  {customization.numberEnabled && customization.number && (
+                    <text
+                      x="11"
+                      y="17"
+                      fontSize="7"
+                      fill={customization.numberColor}
+                      style={{ fontFamily: '"Press Start 2P", "Courier New", monospace', fontWeight: 'bold' }}
+                      textAnchor="middle"
+                    >
+                      {customization.number.slice(0, 2)}
+                    </text>
+                  )}
                 </svg>
               </div>
             </div>
@@ -155,7 +227,7 @@ export default function MainMenu() {
               onClick={() => onSelect(c.id)}
               className="w-5 h-5 md:w-6 md:h-6 border-4 transition-all"
               style={{
-                background: c.color,
+                background: selectedId === c.id ? displayColor : c.color,
                 borderColor: selectedId === c.id ? '#ffffff' : '#000000',
                 transform: selectedId === c.id ? 'translateY(-2px)' : 'none',
               }}
@@ -368,6 +440,7 @@ export default function MainMenu() {
             label="PLAYER 1"
             color="#00ff88"
             playerIdx={1}
+            customization={customizationP1}
           />
           {playerCount === 2 && (
             <CarSelector
@@ -376,6 +449,7 @@ export default function MainMenu() {
               label="PLAYER 2"
               color="#ff3366"
               playerIdx={2}
+              customization={customizationP2}
             />
           )}
         </div>

@@ -116,7 +116,7 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
               <div
                 className="h-full transition-all duration-75"
                 style={{
-                  width: `${Math.min(100, (playerCar.currentDriftPoints / 100) * 100)}%`,
+                  width: `${Math.min(100, (playerCar.currentDriftPoints / 500) * 100)}%`,
                   background: `linear-gradient(90deg, #ff88cc, #ff3366, #ffdd00)`,
                 }}
               />

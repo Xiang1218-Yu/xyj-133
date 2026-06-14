@@ -151,9 +151,15 @@ export default function GameCanvas() {
       let playerIndices: (0 | 1 | -1)[] = [];
 
       if (st.gameMode === 'timeattack' || st.gameMode === 'drift') {
-        carIds = [selectedCarIdP1];
-        isPlayerFlags = [true];
-        playerIndices = [0];
+        if (st.playerCount === 2) {
+          carIds = [selectedCarIdP1, selectedCarIdP2];
+          isPlayerFlags = [true, true];
+          playerIndices = [0, 1];
+        } else {
+          carIds = [selectedCarIdP1];
+          isPlayerFlags = [true];
+          playerIndices = [0];
+        }
       } else if (st.playerCount === 2) {
         carIds = [selectedCarIdP1, selectedCarIdP2];
         isPlayerFlags = [true, true];
@@ -674,9 +680,15 @@ export default function GameCanvas() {
       let playerIndices: (0 | 1 | -1)[] = [];
 
       if (st.gameMode === 'timeattack' || st.gameMode === 'drift') {
-        carIds = [selectedCarIdP1];
-        isPlayerFlags = [true];
-        playerIndices = [0];
+        if (st.playerCount === 2) {
+          carIds = [selectedCarIdP1, selectedCarIdP2];
+          isPlayerFlags = [true, true];
+          playerIndices = [0, 1];
+        } else {
+          carIds = [selectedCarIdP1];
+          isPlayerFlags = [true];
+          playerIndices = [0];
+        }
       } else if (st.playerCount === 2) {
         carIds = [selectedCarIdP1, selectedCarIdP2];
         isPlayerFlags = [true, true];

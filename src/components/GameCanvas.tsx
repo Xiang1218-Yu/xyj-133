@@ -166,7 +166,7 @@ export default function GameCanvas() {
     setCountdown(3);
 
     input.onSpacePress = () => {
-      if (phase !== 'racing') return;
+      if (useGameStore.getState().phase !== 'racing') return;
       const player = st.cars.find((c) => c.isPlayer);
       if (!player || player.finished) return;
       const used = useItem(player, st.cars, st.bananas, st.missiles, st.particles);

@@ -228,8 +228,7 @@ export default function MainMenu() {
           </div>
         </div>
 
-        {gameMode === 'grandprix' && (
-          <div className="w-full max-w-2xl">
+        <div className="w-full max-w-2xl">
             <div className="text-center mb-2 md:mb-3" style={{ color: '#ffdd00' }}>
               <span className="text-[10px] md:text-xs tracking-widest">PLAYERS</span>
             </div>
@@ -249,7 +248,7 @@ export default function MainMenu() {
                     1 PLAYER
                   </div>
                   <div className="text-[8px] md:text-[10px]" style={{ color: '#8888aa' }}>
-                    单人对战AI
+                    {gameMode === 'timeattack' ? '单人刷圈速' : '单人对战AI'}
                   </div>
                 </div>
               </button>
@@ -274,9 +273,8 @@ export default function MainMenu() {
               </button>
             </div>
           </div>
-        )}
 
-        {gameMode === 'grandprix' && playerCount === 2 && (
+        {playerCount === 2 && (
           <div className="w-full max-w-2xl">
             <div className="text-center mb-2 md:mb-3" style={{ color: '#33ccff' }}>
               <span className="text-[10px] md:text-xs tracking-widest">SPLIT SCREEN</span>

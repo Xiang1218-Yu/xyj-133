@@ -16,9 +16,8 @@ interface PlayerHUDProps {
 
 const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLayout, viewportIdx, playerCount }: PlayerHUDProps) => {
   const isTimeAttack = gameMode === 'timeattack';
-  const isSplit = playerCount === 2 && !isTimeAttack;
+  const isSplit = playerCount === 2;
   const playerColor = playerCar.playerIndex === 0 ? '#00ff88' : '#ff3366';
-  const isP1 = playerCar.playerIndex === 0;
 
   const sorted = [...allCars].sort((a, b) => {
     if (a.finished && b.finished) return a.finishTime - b.finishTime;
@@ -46,7 +45,7 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
   return (
     <div style={containerStyle} className="pointer-events-none z-20 text-[9px] md:text-[10px]">
       <div
-        className={`absolute ${isSplit ? (isP1 ? 'top-1 left-1' : 'bottom-1 left-1') : 'top-3 left-3 md:top-6 md:left-6'} p-2 md:p-3 border-4`}
+        className={`absolute top-1 left-1 md:top-3 md:left-6 p-2 md:p-3 border-4`}
         style={{ background: 'rgba(10,10,30,0.85)', borderColor: playerColor, boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
       >
         <div style={{ color: playerColor, fontSize: '0.8em' }} className="mb-1 tracking-wider">
@@ -71,7 +70,7 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
       </div>
 
       <div
-        className={`absolute ${isSplit ? (isP1 ? 'top-1 right-1' : 'bottom-1 right-1') : 'top-3 right-3 md:top-6 md:right-6'} p-2 md:p-3 border-4 w-28 md:w-40`}
+        className={`absolute top-1 right-1 md:top-3 md:right-6 p-2 md:p-3 border-4 w-28 md:w-40`}
         style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
       >
         <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider">SPEED</div>
@@ -95,7 +94,7 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
       {!isTimeAttack && (
         <>
           <div
-            className={`absolute ${isSplit ? (isP1 ? 'bottom-1 left-1' : 'top-1 left-1') : 'bottom-3 left-3 md:bottom-6 md:left-6'} p-2 md:p-3 border-4`}
+            className={`absolute bottom-1 left-1 md:bottom-3 md:left-6 p-2 md:p-3 border-4`}
             style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
           >
             <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider">POSITION</div>
@@ -111,7 +110,7 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
           </div>
 
           <div
-            className={`absolute ${isSplit ? (isP1 ? 'bottom-1 right-1' : 'top-1 right-1') : 'bottom-3 right-3 md:bottom-6 md:right-6'} p-2 md:p-3 border-4 flex items-center gap-2 md:gap-3`}
+            className={`absolute bottom-1 right-1 md:bottom-3 md:right-6 p-2 md:p-3 border-4 flex items-center gap-2 md:gap-3`}
             style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
           >
             <div style={{ color: '#8888aa' }} className="tracking-wider text-[8px] md:text-[10px]">ITEM</div>
@@ -136,7 +135,7 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
 
       {(playerCar.boostTime > 0 || playerCar.hasShield) && (
         <div
-          className={`absolute ${isSplit ? (isP1 ? 'top-1/2 left-1' : 'top-1/2 right-1') : 'top-1/2 left-3 md:left-6'} -translate-y-1/2 flex flex-col gap-1 md:gap-2`}
+          className={`absolute top-1/2 left-1 md:left-6 -translate-y-1/2 flex flex-col gap-1 md:gap-2`}
         >
           {playerCar.boostTime > 0 && (
             <div

@@ -262,7 +262,7 @@ export default function GameCanvas() {
     const getViewports = (): { x: number; y: number; width: number; height: number }[] => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      if (st.playerCount === 1 || st.gameMode === 'timeattack') {
+      if (st.playerCount === 1) {
         return [{ x: 0, y: 0, width: w, height: h }];
       }
       if (st.splitLayout === 'horizontal') {

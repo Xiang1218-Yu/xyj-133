@@ -69,9 +69,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     let playerIndices: (0 | 1 | -1)[] = [];
     
     if (gameMode === 'timeattack') {
-      carIds = [selectedCarIdP1];
-      isPlayerFlags = [true];
-      playerIndices = [0];
+      if (playerCount === 2) {
+        carIds = [selectedCarIdP1, selectedCarIdP2];
+        isPlayerFlags = [true, true];
+        playerIndices = [0, 1];
+      } else {
+        carIds = [selectedCarIdP1];
+        isPlayerFlags = [true];
+        playerIndices = [0];
+      }
     } else if (playerCount === 2) {
       carIds = [selectedCarIdP1, selectedCarIdP2];
       isPlayerFlags = [true, true];

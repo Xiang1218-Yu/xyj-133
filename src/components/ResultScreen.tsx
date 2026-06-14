@@ -15,7 +15,7 @@ export default function ResultScreen() {
   const backToMenu = useGameStore((s) => s.backToMenu);
 
   const isTimeAttack = gameMode === 'timeattack';
-  const isTwoPlayer = playerCount === 2 && !isTimeAttack;
+  const isTwoPlayer = playerCount === 2;
   const playerCars = cars.filter((c) => c.isPlayer);
 
   const sortedIds = rankings.length > 0 ? rankings : [...cars]
@@ -63,6 +63,10 @@ export default function ResultScreen() {
 
   const getTitle = () => {
     if (isTimeAttack) {
+      if (isTwoPlayer) {
+        if (isDraw) return '🤝 DRAW! 🤝';
+        return p1Won ? '🏆 P1 WINS! 🏆' : '🏆 P2 WINS! 🏆';
+      }
       return '⏱️ TIME ATTACK ⏱️';
     }
     if (isDraw) return '🤝 DRAW! 🤝';
@@ -74,6 +78,9 @@ export default function ResultScreen() {
 
   const getSubtitle = () => {
     if (isTimeAttack) {
+      if (isTwoPlayer) {
+        return `P1: ${playerCars[0]?.bestLapTime < Infinity ? formatTime(playerCars[0].bestLapTime) : '—'} | P2: ${playerCars[1]?.bestLapTime < Infinity ? formatTime(playerCars[1].bestLapTime) : '—'}`;
+      }
       const p1 = playerCars[0];
       if (p1?.bestLapTime < Infinity) {
         return `Best Lap: ${formatTime(p1.bestLapTime)}`;
@@ -88,7 +95,13 @@ export default function ResultScreen() {
   };
 
   const getBorderColor = () => {
-    if (isTimeAttack) return '#33ccff';
+    if (isTimeAttack) {
+      if (isTwoPlayer) {
+        if (isDraw) return '#ffdd00';
+        return p1Won ? '#00ff88' : '#ff3366';
+      }
+      return '#33ccff';
+    }
     if (isDraw) return '#ffdd00';
     if (isTwoPlayer) return p1Won ? '#00ff88' : '#ff3366';
     return anyPlayerWon ? '#ffdd00' : '#ff3366';
@@ -109,10 +122,10 @@ export default function ResultScreen() {
       >
         <div className="text-center mb-3 md:mb-4 shrink-0">
           <div className="flex justify-center gap-2 mb-2">
-            {isTimeAttack ? (
+            {isTimeAttack && !isTwoPlayer ? (
               <Timer className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#33ccff' }} />
             ) : isTwoPlayer ? (
-              <Users className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#ffdd00' }} />
+              <Users className="w-5 h-5 md:w-6 md:h-6" style={{ color: getBorderColor() }} />
             ) : (
               <Trophy className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#ffdd00' }} />
             )}
@@ -130,7 +143,7 @@ export default function ResultScreen() {
             {getSubtitle()}
           </div>
           <div style={{ color: '#666688' }} className="text-[9px] md:text-[10px] mt-1 tracking-wider">
-            {isTimeAttack ? 'TIME ATTACK MODE' : isTwoPlayer ? '2P SPLIT SCREEN' : 'GRAND PRIX MODE'}
+            {isTimeAttack ? (isTwoPlayer ? 'TIME ATTACK · 2P' : 'TIME ATTACK MODE') : isTwoPlayer ? 'GRAND PRIX · 2P' : 'GRAND PRIX MODE'}
           </div>
         </div>
 
@@ -238,26 +251,71 @@ export default function ResultScreen() {
           </div>
         )}
 
-        {isTimeAttack && playerCars[0]?.bestLapTime < Infinity && (
-          <div className="flex justify-center items-center mb-3 md:mb-4 flex-1 min-h-0">
-            <div 
-              className="text-center px-6 py-4 md:px-8 md:py-6 border-4" 
-              style={{ 
-                borderColor: '#33ccff', 
-                background: '#15152e',
-                boxShadow: '0 0 30px #33ccff44'
-              }}
-            >
-              <div style={{ color: '#8888aa' }} className="mb-2 text-[10px] md:text-sm tracking-wider">
-                🏆 BEST LAP TIME 🏆
-              </div>
-              <div style={{ color: '#33ccff', fontSize: '2em', textShadow: '2px 2px 0 #000' }} className="tracking-wider">
-                {formatTime(playerCars[0].bestLapTime)}
-              </div>
-              <div style={{ color: '#8888aa' }} className="mt-2 text-[9px] md:text-xs">
-                Total: {playerCars[0].finished ? formatTime(playerCars[0].finishTime) : '—'}
-              </div>
-            </div>
+        {isTimeAttack && (
+          <div className="flex justify-center items-center mb-3 md:mb-4 flex-1 min-h-0 gap-2 md:gap-4 flex-wrap">
+            {isTwoPlayer ? (
+              <>
+                <div 
+                  className="text-center px-4 py-3 md:px-6 md:py-5 border-4" 
+                  style={{ 
+                    borderColor: p1Won ? '#00ff88' : '#333366', 
+                    background: '#15152e',
+                    boxShadow: p1Won ? '0 0 30px #00ff8844' : 'none'
+                  }}
+                >
+                  <div style={{ color: '#00ff88' }} className="mb-2 text-[10px] md:text-sm tracking-wider">
+                    {p1Won ? '🏆 P1 🏆' : 'P1'}
+                  </div>
+                  <div style={{ color: '#8888aa' }} className="mb-1 text-[9px] md:text-[10px]">BEST LAP</div>
+                  <div style={{ color: '#33ccff', fontSize: '1.5em', textShadow: '2px 2px 0 #000' }} className="tracking-wider mb-2">
+                    {playerCars[0]?.bestLapTime < Infinity ? formatTime(playerCars[0].bestLapTime) : '—'}
+                  </div>
+                  <div style={{ color: '#8888aa' }} className="text-[9px] md:text-[10px]">
+                    TOTAL: {playerCars[0]?.finished ? formatTime(playerCars[0].finishTime) : '—'}
+                  </div>
+                </div>
+                <div 
+                  className="text-center px-4 py-3 md:px-6 md:py-5 border-4" 
+                  style={{ 
+                    borderColor: p2Won ? '#ff3366' : '#333366', 
+                    background: '#15152e',
+                    boxShadow: p2Won ? '0 0 30px #ff336644' : 'none'
+                  }}
+                >
+                  <div style={{ color: '#ff3366' }} className="mb-2 text-[10px] md:text-sm tracking-wider">
+                    {p2Won ? '🏆 P2 🏆' : 'P2'}
+                  </div>
+                  <div style={{ color: '#8888aa' }} className="mb-1 text-[9px] md:text-[10px]">BEST LAP</div>
+                  <div style={{ color: '#33ccff', fontSize: '1.5em', textShadow: '2px 2px 0 #000' }} className="tracking-wider mb-2">
+                    {playerCars[1]?.bestLapTime < Infinity ? formatTime(playerCars[1].bestLapTime) : '—'}
+                  </div>
+                  <div style={{ color: '#8888aa' }} className="text-[9px] md:text-[10px]">
+                    TOTAL: {playerCars[1]?.finished ? formatTime(playerCars[1].finishTime) : '—'}
+                  </div>
+                </div>
+              </>
+            ) : (
+              playerCars[0]?.bestLapTime < Infinity && (
+                <div 
+                  className="text-center px-6 py-4 md:px-8 md:py-6 border-4" 
+                  style={{ 
+                    borderColor: '#33ccff', 
+                    background: '#15152e',
+                    boxShadow: '0 0 30px #33ccff44'
+                  }}
+                >
+                  <div style={{ color: '#8888aa' }} className="mb-2 text-[10px] md:text-sm tracking-wider">
+                    🏆 BEST LAP TIME 🏆
+                  </div>
+                  <div style={{ color: '#33ccff', fontSize: '2em', textShadow: '2px 2px 0 #000' }} className="tracking-wider">
+                    {formatTime(playerCars[0].bestLapTime)}
+                  </div>
+                  <div style={{ color: '#8888aa' }} className="mt-2 text-[9px] md:text-xs">
+                    Total: {playerCars[0].finished ? formatTime(playerCars[0].finishTime) : '—'}
+                  </div>
+                </div>
+              )
+            )}
           </div>
         )}
 

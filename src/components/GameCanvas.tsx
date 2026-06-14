@@ -293,37 +293,36 @@ export default function GameCanvas() {
         for (const car of st.cars) {
           if (car.finished) continue;
           const idx = nearestTrackIdx(car.x, car.y, MAIN_TRACK);
-          const nextCheckpoint = checkpoints[(car.checkpoint + 1) % checkpoints.length];
-          if (idx === nextCheckpoint || Math.abs(idx - nextCheckpoint) <= 2) {
-            if (car.checkpoint !== nextCheckpoint) {
-              car.checkpoint = nextCheckpoint;
-              if (nextCheckpoint === 0 && car.checkpoint === 0) {
-                if (car.lap > 0 || idx < checkpoints[checkpoints.length - 1] + 5) {
-                  const lapTime = ts - car.currentLapStartTime;
-                  if (lapTime < car.bestLapTime && lapTime > 5000) {
-                    car.bestLapTime = lapTime;
-                  }
-                  car.lap += 1;
-                  car.currentLapStartTime = ts;
-                  if (car.lap >= TOTAL_LAPS) {
-                    car.finished = true;
-                    car.finishTime = ts - st.raceStartTime;
-                    st.rankings.push(car.id);
-                    if (car.isPlayer) {
-                      st.camera.shake = 12;
+          const nextSeqIdx = (car.checkpoint + 1) % checkpoints.length;
+          const nextTrackIdx = checkpoints[nextSeqIdx];
+          const nearCheckpoint = idx === nextTrackIdx || Math.abs(idx - nextTrackIdx) <= 2;
+          if (nearCheckpoint) {
+            const prevSeqIdx = car.checkpoint;
+            car.checkpoint = nextSeqIdx;
+            if (nextSeqIdx === 0 && prevSeqIdx === checkpoints.length - 1) {
+              const lapTime = ts - car.currentLapStartTime;
+              if (lapTime > 5000 && lapTime < car.bestLapTime) {
+                car.bestLapTime = lapTime;
+              }
+              car.lap += 1;
+              car.currentLapStartTime = ts;
+              if (car.lap >= TOTAL_LAPS) {
+                car.finished = true;
+                car.finishTime = ts - st.raceStartTime;
+                st.rankings.push(car.id);
+                if (car.isPlayer) {
+                  st.camera.shake = 12;
+                }
+                if (st.rankings.length >= st.cars.length || (st.rankings.includes(0) && st.rankings.length >= 3)) {
+                  st.raceFinished = true;
+                  setTimeout(() => {
+                    const finalRank = [...st.rankings];
+                    for (const c of st.cars) {
+                      if (!finalRank.includes(c.id)) finalRank.push(c.id);
                     }
-                    if (st.rankings.length >= st.cars.length || (st.rankings.includes(0) && st.rankings.length >= 3)) {
-                      st.raceFinished = true;
-                      setTimeout(() => {
-                        const finalRank = [...st.rankings];
-                        for (const c of st.cars) {
-                          if (!finalRank.includes(c.id)) finalRank.push(c.id);
-                        }
-                        const winner = finalRank[0];
-                        finishRace(winner, finalRank);
-                      }, 1500);
-                    }
-                  }
+                    const winner = finalRank[0];
+                    finishRace(winner, finalRank);
+                  }, 1500);
                 }
               }
             }

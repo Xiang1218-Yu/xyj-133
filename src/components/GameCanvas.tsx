@@ -309,11 +309,15 @@ export default function GameCanvas() {
               if (car.lap >= TOTAL_LAPS) {
                 car.finished = true;
                 car.finishTime = ts - st.raceStartTime;
-                st.rankings.push(car.id);
+                if (!st.rankings.includes(car.id)) {
+                  st.rankings.push(car.id);
+                }
                 if (car.isPlayer) {
                   st.camera.shake = 12;
                 }
-                if (st.rankings.length >= st.cars.length || (st.rankings.includes(0) && st.rankings.length >= 3)) {
+                const allFinished = st.rankings.length >= st.cars.length;
+                const playerFinished = st.rankings.includes(0);
+                if (!st.raceFinished && (allFinished || playerFinished)) {
                   st.raceFinished = true;
                   setTimeout(() => {
                     const finalRank = [...st.rankings];
@@ -322,7 +326,7 @@ export default function GameCanvas() {
                     }
                     const winner = finalRank[0];
                     finishRace(winner, finalRank);
-                  }, 1500);
+                  }, car.isPlayer ? 1500 : 800);
                 }
               }
             }

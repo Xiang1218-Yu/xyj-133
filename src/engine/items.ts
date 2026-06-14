@@ -14,7 +14,7 @@ export const tryCollectItemBox = (
   if (car.currentItem) return false;
   for (const box of boxes) {
     if (box.collected) continue;
-    if (dist(car.x, car.y, box.x, box.y) < 30) {
+    if (dist(car.x, car.y, box.x, box.y) < 55) {
       box.collected = true;
       box.respawnTimer = 5000;
       car.currentItem = randomItem();

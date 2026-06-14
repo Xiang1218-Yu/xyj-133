@@ -64,7 +64,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         maxSpeed: 0, acceleration: 0, handling: 0, friction: 0,
         isPlayer: i === 0,
         lap: 0,
-        checkpoint: 0,
+        checkpoint: -1,
         bestLapTime: Infinity,
         currentLapStartTime: 0,
         totalTime: 0,

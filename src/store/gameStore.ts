@@ -112,7 +112,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     let isPlayerFlags: boolean[] = [];
     let playerIndices: (0 | 1 | -1)[] = [];
     
-    if (gameMode === 'timeattack') {
+    if (gameMode === 'timeattack' || gameMode === 'drift') {
       if (playerCount === 2) {
         carIds = [selectedCarIdP1, selectedCarIdP2];
         isPlayerFlags = [true, true];
@@ -165,6 +165,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         drifting: false,
         driftAngle: 0,
         tireMarkTimer: 0,
+        driftScore: 0,
+        driftCombo: 0,
+        currentDriftPoints: 0,
+        maxDriftCombo: 0,
+        driftComboTimer: 0,
         aiTargetIdx: 0,
         aiSkill: isPlayerFlags[i] ? 0 : [0.8, 0.65, 0.75][i - 1] ?? 0.7,
         itemCooldown: 0,

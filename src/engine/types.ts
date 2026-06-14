@@ -2,7 +2,7 @@ export type GamePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'replay';
 
 export type ItemType = 'boost' | 'shield' | 'banana' | 'missile';
 
-export type GameMode = 'grandprix' | 'timeattack';
+export type GameMode = 'grandprix' | 'timeattack' | 'drift';
 
 export type SplitScreenLayout = 'horizontal' | 'vertical';
 
@@ -50,6 +50,11 @@ export interface Car {
   drifting: boolean;
   driftAngle: number;
   tireMarkTimer: number;
+  driftScore: number;
+  driftCombo: number;
+  currentDriftPoints: number;
+  maxDriftCombo: number;
+  driftComboTimer: number;
   aiTargetIdx: number;
   aiSkill: number;
   itemCooldown: number;
@@ -168,6 +173,10 @@ export interface CarSnapshot {
   spinTime: number;
   drifting: boolean;
   driftAngle: number;
+  driftScore: number;
+  driftCombo: number;
+  currentDriftPoints: number;
+  maxDriftCombo: number;
   currentItem: ItemType | null;
 }
 

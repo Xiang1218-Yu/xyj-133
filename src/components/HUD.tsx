@@ -16,6 +16,7 @@ interface PlayerHUDProps {
 
 const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLayout, viewportIdx, playerCount }: PlayerHUDProps) => {
   const isTimeAttack = gameMode === 'timeattack';
+  const isDrift = gameMode === 'drift';
   const isSplit = playerCount === 2;
   const playerColor = playerCar.playerIndex === 0 ? '#00ff88' : '#ff3366';
 
@@ -51,20 +52,39 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
         <div style={{ color: playerColor, fontSize: '0.8em' }} className="mb-1 tracking-wider">
           P{playerCar.playerIndex + 1}
         </div>
-        <div style={{ color: '#8888aa' }} className="mb-1 tracking-wider">LAP</div>
-        <div style={{ color: '#00ff88', fontSize: '1.2em', textShadow: '1px 1px 0 #005533' }}>
-          {Math.min(playerCar.lap + 1, totalLaps)} <span style={{ color: '#666', fontSize: '0.6em' }}>/ {totalLaps}</span>
-        </div>
-        <div style={{ color: '#8888aa' }} className="mt-2 mb-1 tracking-wider">TIME</div>
-        <div style={{ color: '#ffdd00', fontSize: '1em', letterSpacing: 1 }}>
-          {formatTime(raceTime)}
-        </div>
-        {playerCar.bestLapTime < Infinity && (
+        {isDrift ? (
           <>
-            <div style={{ color: '#8888aa' }} className="mt-2 mb-1 tracking-wider">BEST</div>
-            <div style={{ color: '#33ccff', letterSpacing: 1, fontSize: isTimeAttack ? '1.2em' : '1em' }}>
-              {formatTime(playerCar.bestLapTime)}
+            <div style={{ color: '#8888aa' }} className="mb-1 tracking-wider">DRIFT SCORE</div>
+            <div style={{ color: '#ff88cc', fontSize: '1.4em', textShadow: '1px 1px 0 #552244' }}>
+              {Math.floor(playerCar.driftScore)}
             </div>
+            {playerCar.maxDriftCombo > 0 && (
+              <>
+                <div style={{ color: '#8888aa' }} className="mt-2 mb-1 tracking-wider">MAX COMBO</div>
+                <div style={{ color: '#ffdd00', fontSize: '1em', letterSpacing: 1 }}>
+                  x{playerCar.maxDriftCombo}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ color: '#8888aa' }} className="mb-1 tracking-wider">LAP</div>
+            <div style={{ color: '#00ff88', fontSize: '1.2em', textShadow: '1px 1px 0 #005533' }}>
+              {Math.min(playerCar.lap + 1, totalLaps)} <span style={{ color: '#666', fontSize: '0.6em' }}>/ {totalLaps}</span>
+            </div>
+            <div style={{ color: '#8888aa' }} className="mt-2 mb-1 tracking-wider">TIME</div>
+            <div style={{ color: '#ffdd00', fontSize: '1em', letterSpacing: 1 }}>
+              {formatTime(raceTime)}
+            </div>
+            {playerCar.bestLapTime < Infinity && (
+              <>
+                <div style={{ color: '#8888aa' }} className="mt-2 mb-1 tracking-wider">BEST</div>
+                <div style={{ color: '#33ccff', letterSpacing: 1, fontSize: isTimeAttack ? '1.2em' : '1em' }}>
+                  {formatTime(playerCar.bestLapTime)}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -73,25 +93,60 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
         className={`absolute top-1 right-1 md:top-3 md:right-6 p-2 md:p-3 border-4 w-28 md:w-40`}
         style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
       >
-        <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider">SPEED</div>
-        <div
-          className="h-3 md:h-4 mb-1 border-2 overflow-hidden relative"
-          style={{ borderColor: '#2a2a5a', background: '#1a1a3a' }}
-        >
-          <div
-            className="h-full transition-all duration-75"
-            style={{
-              width: `${speedPct}%`,
-              background: `linear-gradient(90deg, #00ff88, #ffdd00, #ff3366)`,
-            }}
-          />
-        </div>
-        <div className="text-right" style={{ color: '#ffffff', fontSize: '1.2em', textShadow: '1px 1px 0 #000' }}>
-          {speedKmh}<span style={{ color: '#888', fontSize: '0.5em' }}> KM/H</span>
-        </div>
+        <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider">{isDrift ? 'DRIFT' : 'SPEED'}</div>
+        {isDrift ? (
+          <>
+            {playerCar.driftCombo > 0 && (
+              <div
+                className="text-center mb-2"
+                style={{
+                  color: playerCar.driftCombo >= 5 ? '#ff3366' : playerCar.driftCombo >= 3 ? '#ffdd00' : '#ff88cc',
+                  fontSize: '1.5em',
+                  textShadow: '2px 2px 0 #000',
+                  animation: playerCar.drifting ? 'pulse-glow 0.5s ease-in-out infinite' : 'none',
+                }}
+              >
+                COMBO x{playerCar.driftCombo}
+              </div>
+            )}
+            <div
+              className="h-3 md:h-4 mb-1 border-2 overflow-hidden relative"
+              style={{ borderColor: '#2a2a5a', background: '#1a1a3a' }}
+            >
+              <div
+                className="h-full transition-all duration-75"
+                style={{
+                  width: `${Math.min(100, (playerCar.currentDriftPoints / 100) * 100)}%`,
+                  background: `linear-gradient(90deg, #ff88cc, #ff3366, #ffdd00)`,
+                }}
+              />
+            </div>
+            <div className="text-right" style={{ color: '#ff88cc', fontSize: '1em', textShadow: '1px 1px 0 #000' }}>
+              +{Math.floor(playerCar.currentDriftPoints)}
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              className="h-3 md:h-4 mb-1 border-2 overflow-hidden relative"
+              style={{ borderColor: '#2a2a5a', background: '#1a1a3a' }}
+            >
+              <div
+                className="h-full transition-all duration-75"
+                style={{
+                  width: `${speedPct}%`,
+                  background: `linear-gradient(90deg, #00ff88, #ffdd00, #ff3366)`,
+                }}
+              />
+            </div>
+            <div className="text-right" style={{ color: '#ffffff', fontSize: '1.2em', textShadow: '1px 1px 0 #000' }}>
+              {speedKmh}<span style={{ color: '#888', fontSize: '0.5em' }}> KM/H</span>
+            </div>
+          </>
+        )}
       </div>
 
-      {!isTimeAttack && (
+      {!isTimeAttack && !isDrift && (
         <>
           <div
             className={`absolute bottom-1 left-1 md:bottom-3 md:left-6 p-2 md:p-3 border-4`}

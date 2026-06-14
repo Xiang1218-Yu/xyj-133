@@ -18,11 +18,15 @@ export default function ResultScreen() {
   const startReplay = useGameStore((s) => s.startReplay);
 
   const isTimeAttack = gameMode === 'timeattack';
+  const isDrift = gameMode === 'drift';
   const isTwoPlayer = playerCount === 2;
   const playerCars = cars.filter((c) => c.isPlayer);
 
   const sortedIds = rankings.length > 0 ? rankings : [...cars]
     .sort((a, b) => {
+      if (isDrift) {
+        return b.driftScore - a.driftScore;
+      }
       if (a.finished && b.finished) return a.finishTime - b.finishTime;
       if (a.finished) return -1;
       if (b.finished) return 1;
@@ -65,6 +69,13 @@ export default function ResultScreen() {
   };
 
   const getTitle = () => {
+    if (isDrift) {
+      if (isTwoPlayer) {
+        if (isDraw) return '🤝 DRAW! 🤝';
+        return p1Won ? '🏆 P1 WINS! 🏆' : '🏆 P2 WINS! 🏆';
+      }
+      return '✨ DRIFT MASTER ✨';
+    }
     if (isTimeAttack) {
       if (isTwoPlayer) {
         if (isDraw) return '🤝 DRAW! 🤝';
@@ -80,6 +91,16 @@ export default function ResultScreen() {
   };
 
   const getSubtitle = () => {
+    if (isDrift) {
+      if (isTwoPlayer) {
+        return `P1: ${Math.floor(playerCars[0]?.driftScore || 0)} pts | P2: ${Math.floor(playerCars[1]?.driftScore || 0)} pts`;
+      }
+      const p1 = playerCars[0];
+      if (p1) {
+        return `Total Score: ${Math.floor(p1.driftScore)} pts`;
+      }
+      return 'Show off your drifting skills!';
+    }
     if (isTimeAttack) {
       if (isTwoPlayer) {
         return `P1: ${playerCars[0]?.bestLapTime < Infinity ? formatTime(playerCars[0].bestLapTime) : '—'} | P2: ${playerCars[1]?.bestLapTime < Infinity ? formatTime(playerCars[1].bestLapTime) : '—'}`;
@@ -98,6 +119,13 @@ export default function ResultScreen() {
   };
 
   const getBorderColor = () => {
+    if (isDrift) {
+      if (isTwoPlayer) {
+        if (isDraw) return '#ffdd00';
+        return p1Won ? '#00ff88' : '#ff3366';
+      }
+      return '#ff88cc';
+    }
     if (isTimeAttack) {
       if (isTwoPlayer) {
         if (isDraw) return '#ffdd00';
@@ -146,7 +174,7 @@ export default function ResultScreen() {
             {getSubtitle()}
           </div>
           <div style={{ color: '#666688' }} className="text-[9px] md:text-[10px] mt-1 tracking-wider">
-            {isTimeAttack ? (isTwoPlayer ? 'TIME ATTACK · 2P' : 'TIME ATTACK MODE') : isTwoPlayer ? 'GRAND PRIX · 2P' : 'GRAND PRIX MODE'}
+            {isDrift ? (isTwoPlayer ? 'DRIFT SCORE · 2P' : 'DRIFT SCORE MODE') : isTimeAttack ? (isTwoPlayer ? 'TIME ATTACK · 2P' : 'TIME ATTACK MODE') : isTwoPlayer ? 'GRAND PRIX · 2P' : 'GRAND PRIX MODE'}
           </div>
         </div>
 
@@ -167,18 +195,33 @@ export default function ResultScreen() {
                   <div style={{ color: playerColor }} className="mb-0.5 md:mb-1 text-[10px]">
                     P{car.playerIndex + 1}
                   </div>
-                  {!isTimeAttack && (
+                  {!isTimeAttack && !isDrift && (
                     <div style={{ color: '#ffdd00', fontSize: '1.1em' }} className="mb-0.5 md:mb-1">
                       #{rank}
                     </div>
                   )}
-                  <div style={{ color: '#00ff88', fontSize: '1.1em' }} className="mb-0.5 md:mb-1">
-                    {car.finished ? formatTime(car.finishTime) : '—'}
-                  </div>
-                  {car.bestLapTime < Infinity && (
-                    <div style={{ color: '#33ccff', fontSize: '0.9em' }}>
-                      BEST: {formatTime(car.bestLapTime)}
-                    </div>
+                  {isDrift ? (
+                    <>
+                      <div style={{ color: '#ff88cc', fontSize: '1.3em' }} className="mb-0.5 md:mb-1">
+                        {Math.floor(car.driftScore)} PTS
+                      </div>
+                      {car.maxDriftCombo > 0 && (
+                        <div style={{ color: '#ffdd00', fontSize: '0.9em' }}>
+                          MAX COMBO x{car.maxDriftCombo}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ color: '#00ff88', fontSize: '1.1em' }} className="mb-0.5 md:mb-1">
+                        {car.finished ? formatTime(car.finishTime) : '—'}
+                      </div>
+                      {car.bestLapTime < Infinity && (
+                        <div style={{ color: '#33ccff', fontSize: '0.9em' }}>
+                          BEST: {formatTime(car.bestLapTime)}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -186,7 +229,7 @@ export default function ResultScreen() {
           </div>
         )}
 
-        {!isTimeAttack && (
+        {!isTimeAttack && !isDrift && (
           <div className="space-y-2 mb-3 md:mb-4 overflow-y-auto flex-1 min-h-0">
             {sortedIds.map((id, idx) => {
               const car = cars.find((c) => c.id === id);
@@ -247,6 +290,74 @@ export default function ResultScreen() {
                     }}
                   >
                     {car.finished ? formatTime(car.finishTime) : 'DNF'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {isDrift && (
+          <div className="space-y-2 mb-3 md:mb-4 overflow-y-auto flex-1 min-h-0">
+            {sortedIds.map((id, idx) => {
+              const car = cars.find((c) => c.id === id);
+              if (!car) return null;
+              const displayColor = getCarColor(car);
+              const name = getCarName(car);
+
+              return (
+                <div
+                  key={id}
+                  className="flex items-center gap-2 md:gap-4 p-2 md:p-3 border-4 transition-all"
+                  style={{
+                    background: car.isPlayer ? '#1a1a4a' : '#15152e',
+                    borderColor: car.isPlayer ? displayColor : '#2a2a55',
+                    boxShadow: car.isPlayer ? `0 0 20px ${displayColor}55, 3px 3px 0 #000` : '3px 3px 0 #000',
+                    transform: car.isPlayer ? 'scale(1.01)' : 'none',
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-lg md:text-2xl border-4 shrink-0"
+                    style={{
+                      background: rankColors[idx],
+                      borderColor: rankShadows[idx],
+                      color: rankShadows[idx],
+                    }}
+                  >
+                    {medals[idx] || idx + 1}
+                  </div>
+
+                  <div
+                    className="w-12 h-8 md:w-16 md:h-10 flex items-center justify-center border-4 shrink-0"
+                    style={{ background: displayColor + '22', borderColor: displayColor }}
+                  >
+                    <svg viewBox="0 0 40 28" className="w-full h-full px-1">
+                      <rect x="4" y="6" width="32" height="18" fill={displayColor} />
+                      <rect x="4" y="6" width="5" height="18" fill="#00000044" />
+                      <rect x="18" y="8" width="12" height="14" fill="#223344" />
+                    </svg>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className="text-[10px] md:text-xs mb-0.5 md:mb-1 tracking-wider"
+                      style={{ color: car.isPlayer ? displayColor : '#aaaaee' }}
+                    >
+                      {name}
+                    </div>
+                    <div className="text-[9px] md:text-[10px]" style={{ color: '#666' }}>
+                      MAX COMBO: x{car.maxDriftCombo}
+                    </div>
+                  </div>
+
+                  <div
+                    className="text-right text-xs md:text-lg tracking-widest shrink-0"
+                    style={{
+                      color: '#ff88cc',
+                      textShadow: '2px 2px 0 #552244',
+                    }}
+                  >
+                    {Math.floor(car.driftScore)} PTS
                   </div>
                 </div>
               );

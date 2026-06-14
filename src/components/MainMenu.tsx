@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
 import type { GameMode, WeatherType, TimeOfDay } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, Cloud, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -243,6 +243,12 @@ export default function MainMenu() {
               label="TIME ATTACK"
               desc="无对手 · 无道具 · 刷圈速"
             />
+            <ModeButton
+              mode="drift"
+              icon={Sparkles}
+              label="DRIFT SCORE"
+              desc="漂移得分 · 连击加成 · 拼技巧"
+            />
           </div>
         </div>
 
@@ -266,7 +272,7 @@ export default function MainMenu() {
                     1 PLAYER
                   </div>
                   <div className="text-[8px] md:text-[10px]" style={{ color: '#8888aa' }}>
-                    {gameMode === 'timeattack' ? '单人刷圈速' : '单人对战AI'}
+                    {gameMode === 'timeattack' ? '单人刷圈速' : gameMode === 'drift' ? '单人拼漂移' : '单人对战AI'}
                   </div>
                 </div>
               </button>
@@ -474,19 +480,21 @@ export default function MainMenu() {
               <div className="space-y-1 text-[9px] md:text-[10px]" style={{ color: '#ccccdd' }}>
                 <div className="flex justify-between">
                   <span>3 LAPS</span>
-                  <span style={{ color: gameMode === 'timeattack' ? '#ffdd00' : '#33ccff' }}>
-                    {gameMode === 'timeattack' ? '刷最佳圈速' : 'TO WIN'}
+                  <span style={{ color: gameMode === 'timeattack' ? '#ffdd00' : gameMode === 'drift' ? '#ff88cc' : '#33ccff' }}>
+                    {gameMode === 'timeattack' ? '刷最佳圈速' : gameMode === 'drift' ? '拼漂移得分' : 'TO WIN'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>⭐ BOX</span>
                   <span style={{ color: '#aaff88' }}>
-                    {gameMode === 'timeattack' ? '无道具' : 'GET ITEM'}
+                    {gameMode === 'timeattack' || gameMode === 'drift' ? '无道具' : 'GET ITEM'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>💨 DRIFT</span>
-                  <span style={{ color: '#ff88cc' }}>攒加速</span>
+                  <span style={{ color: '#ff88cc' }}>
+                    {gameMode === 'drift' ? '攒分数连击' : '攒加速'}
+                  </span>
                 </div>
               </div>
             )}

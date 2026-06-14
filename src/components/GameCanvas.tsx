@@ -150,7 +150,7 @@ export default function GameCanvas() {
       let isPlayerFlags: boolean[] = [];
       let playerIndices: (0 | 1 | -1)[] = [];
 
-      if (st.gameMode === 'timeattack') {
+      if (st.gameMode === 'timeattack' || st.gameMode === 'drift') {
         carIds = [selectedCarIdP1];
         isPlayerFlags = [true];
         playerIndices = [0];
@@ -201,6 +201,11 @@ export default function GameCanvas() {
           drifting: false,
           driftAngle: 0,
           tireMarkTimer: 0,
+          driftScore: 0,
+          driftCombo: 0,
+          currentDriftPoints: 0,
+          maxDriftCombo: 0,
+          driftComboTimer: 0,
           aiTargetIdx: 0,
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
@@ -215,7 +220,7 @@ export default function GameCanvas() {
       st.rankings = [];
       st.cameras.forEach((c) => { c.shake = 0; });
 
-      if (st.gameMode !== 'timeattack') {
+      if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
         st.itemBoxes = createItemBoxes(MAIN_TRACK);
         getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
           if (st.itemBoxes[i]) {
@@ -252,7 +257,7 @@ export default function GameCanvas() {
       if (useGameStore.getState().phase !== 'racing') return;
       const player = st.cars.find((c) => c.isPlayer && c.playerIndex === playerIdx);
       if (!player || player.finished) return;
-      if (st.gameMode === 'timeattack') return;
+      if (st.gameMode === 'timeattack' || st.gameMode === 'drift') return;
       const used = activateItem(player, st.cars, st.bananas, st.missiles, st.particles);
       if (used === 'boost') {
         st.cameras[playerIdx].shake = 8;
@@ -292,7 +297,7 @@ export default function GameCanvas() {
       renderer.drawTrack(MAIN_TRACK, ts);
       renderer.drawRoadWet(MAIN_TRACK);
       renderer.drawTireMarks(st.tireMarks);
-      if (st.gameMode !== 'timeattack') {
+      if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
         renderer.drawItemBoxes(st.itemBoxes, ts);
         renderer.drawBananas(st.bananas);
         renderer.drawMissiles(st.missiles);
@@ -398,7 +403,7 @@ export default function GameCanvas() {
           const car = st.cars[i];
           const inp: InputState = getInputForCar(car);
 
-          if (!car.isPlayer && inp.space && st.gameMode !== 'timeattack') {
+          if (!car.isPlayer && inp.space && st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
             activateItem(car, st.cars, st.bananas, st.missiles, st.particles);
           }
 
@@ -423,6 +428,36 @@ export default function GameCanvas() {
                 life: 500, maxLife: 500,
                 color: st.env.weather === 'rain' ? '#88aacc' : '#aaaaaa', size: 3,
               });
+            }
+          }
+
+          const absSpeed = Math.abs(car.speed);
+          const driftAngleAbs = Math.abs(car.driftAngle);
+          if (car.drifting && absSpeed > car.maxSpeed * 0.3) {
+            const basePoints = (absSpeed / car.maxSpeed) * 2.5;
+            const angleBonus = driftAngleAbs * 8;
+            car.currentDriftPoints += (basePoints + angleBonus) * (dt / 16);
+            car.driftComboTimer = 1500;
+          } else if (!car.drifting && car.currentDriftPoints > 0) {
+            if (car.driftComboTimer > 0) {
+              car.driftCombo += 1;
+              if (car.driftCombo > car.maxDriftCombo) {
+                car.maxDriftCombo = car.driftCombo;
+              }
+            } else {
+              car.driftCombo = 1;
+              car.maxDriftCombo = Math.max(car.maxDriftCombo, 1);
+            }
+            const comboMultiplier = 1 + (car.driftCombo - 1) * 0.25;
+            const earnedPoints = Math.floor(car.currentDriftPoints * comboMultiplier);
+            car.driftScore += earnedPoints;
+            car.currentDriftPoints = 0;
+            car.driftComboTimer = 1500;
+          }
+          if (car.driftComboTimer > 0) {
+            car.driftComboTimer -= dt;
+            if (car.driftComboTimer <= 0 && !car.drifting) {
+              car.driftCombo = 0;
             }
           }
 
@@ -521,7 +556,7 @@ export default function GameCanvas() {
           }
         }
 
-        if (st.gameMode !== 'timeattack') {
+        if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
           for (const car of st.cars) {
             if (!car.finished) tryCollectItemBox(car, st.itemBoxes);
           }
@@ -638,7 +673,7 @@ export default function GameCanvas() {
       let isPlayerFlags: boolean[] = [];
       let playerIndices: (0 | 1 | -1)[] = [];
 
-      if (st.gameMode === 'timeattack') {
+      if (st.gameMode === 'timeattack' || st.gameMode === 'drift') {
         carIds = [selectedCarIdP1];
         isPlayerFlags = [true];
         playerIndices = [0];
@@ -689,6 +724,11 @@ export default function GameCanvas() {
           drifting: false,
           driftAngle: 0,
           tireMarkTimer: 0,
+          driftScore: 0,
+          driftCombo: 0,
+          currentDriftPoints: 0,
+          maxDriftCombo: 0,
+          driftComboTimer: 0,
           aiTargetIdx: 0,
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
@@ -703,7 +743,7 @@ export default function GameCanvas() {
       st.rankings = [];
       st.cameras.forEach((c) => { c.shake = 0; });
 
-      if (st.gameMode !== 'timeattack') {
+      if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
         st.itemBoxes = createItemBoxes(MAIN_TRACK);
         getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
           if (st.itemBoxes[i]) {

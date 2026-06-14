@@ -62,6 +62,10 @@ export class ReplayRecorder {
       spinTime: c.spinTime,
       drifting: c.drifting,
       driftAngle: c.driftAngle,
+      driftScore: c.driftScore,
+      driftCombo: c.driftCombo,
+      currentDriftPoints: c.currentDriftPoints,
+      maxDriftCombo: c.maxDriftCombo,
       currentItem: c.currentItem,
     }));
 
@@ -329,6 +333,10 @@ export class ReplayPlayer {
         car.spinTime = snap.spinTime;
         car.drifting = snap.drifting;
         car.driftAngle = snap.driftAngle;
+        car.driftScore = snap.driftScore;
+        car.driftCombo = snap.driftCombo;
+        car.currentDriftPoints = snap.currentDriftPoints;
+        car.maxDriftCombo = snap.maxDriftCombo;
         car.currentItem = snap.currentItem;
       }
     }
@@ -370,6 +378,10 @@ export class ReplayPlayer {
       car.spinTime = lerp(snapFrom.spinTime, snapTo.spinTime, t);
       car.drifting = snapTo.drifting;
       car.driftAngle = lerp(snapFrom.driftAngle, snapTo.driftAngle, t);
+      car.driftScore = snapTo.driftScore;
+      car.driftCombo = snapTo.driftCombo;
+      car.currentDriftPoints = lerp(snapFrom.currentDriftPoints, snapTo.currentDriftPoints, t);
+      car.maxDriftCombo = snapTo.maxDriftCombo;
       car.currentItem = snapTo.currentItem;
     }
 

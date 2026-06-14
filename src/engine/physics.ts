@@ -1,21 +1,91 @@
-import type { Car, InputState, Track } from './types';
+import type { Car, InputState, Track, EnvConfig, WeatherType, TimeOfDay } from './types';
 import { clamp, pointToSegmentDist } from '../utils/math';
+
+export interface EnvPhysicsModifiers {
+  frictionMul: number;
+  gripMul: number;
+  accelMul: number;
+  maxSpeedMul: number;
+  offTrackPenalty: number;
+  driftResistanceMul: number;
+}
+
+export const getEnvModifiers = (env: EnvConfig): EnvPhysicsModifiers => {
+  const weatherMods: Record<WeatherType, Partial<EnvPhysicsModifiers>> = {
+    clear: {
+      frictionMul: 1,
+      gripMul: 1,
+      accelMul: 1,
+      maxSpeedMul: 1,
+      offTrackPenalty: 0.94,
+      driftResistanceMul: 1,
+    },
+    rain: {
+      frictionMul: 0.992,
+      gripMul: 0.7,
+      accelMul: 0.9,
+      maxSpeedMul: 0.92,
+      offTrackPenalty: 0.9,
+      driftResistanceMul: 0.65,
+    },
+    snow: {
+      frictionMul: 0.985,
+      gripMul: 0.5,
+      accelMul: 0.8,
+      maxSpeedMul: 0.85,
+      offTrackPenalty: 0.88,
+      driftResistanceMul: 0.4,
+    },
+    fog: {
+      frictionMul: 1,
+      gripMul: 0.9,
+      accelMul: 0.98,
+      maxSpeedMul: 0.97,
+      offTrackPenalty: 0.93,
+      driftResistanceMul: 0.85,
+    },
+  };
+
+  const timeMods: Record<TimeOfDay, Partial<EnvPhysicsModifiers>> = {
+    day: { gripMul: 1, accelMul: 1, maxSpeedMul: 1 },
+    dawn: { gripMul: 0.96, accelMul: 0.99, maxSpeedMul: 0.99 },
+    sunset: { gripMul: 0.94, accelMul: 0.98, maxSpeedMul: 0.98 },
+    night: { gripMul: 0.88, accelMul: 0.95, maxSpeedMul: 0.94 },
+  };
+
+  const w = weatherMods[env.weather];
+  const t = timeMods[env.timeOfDay];
+
+  return {
+    frictionMul: (w.frictionMul ?? 1),
+    gripMul: (w.gripMul ?? 1) * (t.gripMul ?? 1),
+    accelMul: (w.accelMul ?? 1) * (t.accelMul ?? 1),
+    maxSpeedMul: (w.maxSpeedMul ?? 1) * (t.maxSpeedMul ?? 1),
+    offTrackPenalty: w.offTrackPenalty ?? 0.94,
+    driftResistanceMul: w.driftResistanceMul ?? 1,
+  };
+};
 
 export const updateCarPhysics = (
   car: Car,
   input: InputState,
   dt: number,
-  track: Track
+  track: Track,
+  env: EnvConfig = { weather: 'clear', timeOfDay: 'day' },
 ) => {
   if (car.finished) return;
+
+  const mod = getEnvModifiers(env);
 
   if (car.spinTime > 0) {
     car.spinTime -= dt;
     car.angle += 0.15;
     car.speed *= 0.95;
   } else {
-    let maxSpeed = car.maxSpeed;
-    let accel = car.acceleration;
+    let maxSpeed = car.maxSpeed * mod.maxSpeedMul;
+    let accel = car.acceleration * mod.accelMul;
+    let effectiveFriction = car.friction * mod.frictionMul;
+    let handling = car.handling * mod.gripMul;
 
     if (car.boostTime > 0) {
       car.boostTime -= dt;
@@ -34,20 +104,24 @@ export const updateCarPhysics = (
       car.speed = clamp(car.speed - accel * 0.6, -maxSpeed * 0.4, maxSpeed);
     }
 
-    car.speed *= car.friction;
+    car.speed *= effectiveFriction;
 
     const absSpeed = Math.abs(car.speed);
     const turnFactor = clamp(absSpeed / (maxSpeed * 0.5), 0.2, 1);
-    let steerSpeed = car.handling * turnFactor * Math.sign(car.speed || 1);
+    let steerSpeed = handling * turnFactor * Math.sign(car.speed || 1);
 
-    const isDrifting = input.shift && absSpeed > maxSpeed * 0.4 && (input.left || input.right);
+    const driftMinSpeed = maxSpeed * 0.45;
+    const isDrifting = input.shift && absSpeed > driftMinSpeed && (input.left || input.right);
     car.drifting = isDrifting;
 
+    const driftBoost = 1.4 + 0.6 * (1 - mod.driftResistanceMul);
     if (isDrifting) {
-      steerSpeed *= 1.6;
-      car.driftAngle = clamp(car.driftAngle + (input.left ? -0.02 : 0.02), -0.5, 0.5);
+      steerSpeed *= driftBoost;
+      const driftStep = 0.02 / Math.max(0.4, mod.driftResistanceMul);
+      car.driftAngle = clamp(car.driftAngle + (input.left ? -driftStep : driftStep), -0.6, 0.6);
     } else {
-      car.driftAngle *= 0.9;
+      const driftReturn = 0.85 + 0.1 * mod.driftResistanceMul;
+      car.driftAngle *= driftReturn;
     }
 
     if (input.left) car.angle -= steerSpeed;
@@ -58,6 +132,7 @@ export const updateCarPhysics = (
   const newX = car.x + Math.cos(moveAngle) * car.speed;
   const newY = car.y + Math.sin(moveAngle) * car.speed;
 
+  const mod2 = getEnvModifiers(env);
   const { dist: trackDist } = nearestTrackDist(newX, newY, track);
   const halfWidth = track.width / 2;
 
@@ -68,7 +143,7 @@ export const updateCarPhysics = (
       car.speed = clamp(car.speed + 0.08, 0, car.maxSpeed * 1.5);
     }
   } else {
-    car.speed *= 0.94;
+    car.speed *= mod2.offTrackPenalty;
     const pushBack = 0.5;
     car.x += (newX - car.x) * 0.3;
     car.y += (newY - car.y) * 0.3;

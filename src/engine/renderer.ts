@@ -1,8 +1,9 @@
 import type {
   Car, Track, TireMark, Particle, ItemBoxInstance,
   BananaInstance, MissileInstance, Camera, ItemType,
+  WeatherType, TimeOfDay, EnvConfig,
 } from './types';
-import { lerp } from '../utils/math';
+import { lerp, clamp } from '../utils/math';
 
 const GRASS_COLOR = '#1a4a2a';
 const GRASS_DARK = '#144022';
@@ -14,12 +15,109 @@ const CURB_WHITE = '#eeeeee';
 const BOOST_COLOR = '#ffcc00';
 const BOOST_GLOW = '#ffee55';
 
+interface WeatherParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  type: 'rain' | 'snow';
+  life: number;
+  maxLife: number;
+}
+
+const TIME_LIGHTING: Record<TimeOfDay, {
+  skyTint: string;
+  colorMul: [number, number, number];
+  ambientAlpha: number;
+  contrast: number;
+  headlightAlpha: number;
+  vignetteMul: number;
+  scanlineMul: number;
+}> = {
+  day: {
+    skyTint: 'rgba(135,206,235,0.0)',
+    colorMul: [1, 1, 1],
+    ambientAlpha: 0,
+    contrast: 1,
+    headlightAlpha: 0,
+    vignetteMul: 1,
+    scanlineMul: 1,
+  },
+  dawn: {
+    skyTint: 'rgba(255,180,120,0.15)',
+    colorMul: [1.1, 0.95, 0.85],
+    ambientAlpha: 0.08,
+    contrast: 0.95,
+    headlightAlpha: 0.15,
+    vignetteMul: 1.1,
+    scanlineMul: 1,
+  },
+  sunset: {
+    skyTint: 'rgba(255,120,60,0.2)',
+    colorMul: [1.15, 0.85, 0.7],
+    ambientAlpha: 0.12,
+    contrast: 0.9,
+    headlightAlpha: 0.3,
+    vignetteMul: 1.2,
+    scanlineMul: 1.1,
+  },
+  night: {
+    skyTint: 'rgba(20,20,60,0.45)',
+    colorMul: [0.6, 0.65, 0.85],
+    ambientAlpha: 0.35,
+    contrast: 0.8,
+    headlightAlpha: 1,
+    vignetteMul: 1.6,
+    scanlineMul: 1.5,
+  },
+};
+
+const WEATHER_VISUAL: Record<WeatherType, {
+  roadWetAlpha: number;
+  grassDarken: number;
+  fogAlpha: number;
+  particlesPerFrame: number;
+  windX: number;
+}> = {
+  clear: {
+    roadWetAlpha: 0,
+    grassDarken: 0,
+    fogAlpha: 0,
+    particlesPerFrame: 0,
+    windX: 0,
+  },
+  rain: {
+    roadWetAlpha: 0.3,
+    grassDarken: 0.15,
+    fogAlpha: 0.08,
+    particlesPerFrame: 3,
+    windX: 0.3,
+  },
+  snow: {
+    roadWetAlpha: 0.5,
+    grassDarken: -0.4,
+    fogAlpha: 0.12,
+    particlesPerFrame: 2,
+    windX: 0.1,
+  },
+  fog: {
+    roadWetAlpha: 0.05,
+    grassDarken: 0.05,
+    fogAlpha: 0.35,
+    particlesPerFrame: 0,
+    windX: 0,
+  },
+};
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private w: number;
   private h: number;
   private viewportW: number;
   private viewportH: number;
+  private weatherParticles: WeatherParticle[] = [];
+  private env: EnvConfig = { weather: 'clear', timeOfDay: 'day' };
 
   constructor(ctx: CanvasRenderingContext2D, w: number, h: number) {
     this.ctx = ctx;
@@ -27,6 +125,10 @@ export class Renderer {
     this.h = h;
     this.viewportW = w;
     this.viewportH = h;
+  }
+
+  setEnv(env: EnvConfig) {
+    this.env = { ...env };
   }
 
   resize(w: number, h: number) {
@@ -52,15 +154,85 @@ export class Renderer {
     this.viewportH = this.h;
   }
 
+  private hexToRgb(hex: string): [number, number, number] {
+    const h = hex.replace('#', '');
+    return [
+      parseInt(h.substring(0, 2), 16),
+      parseInt(h.substring(2, 4), 16),
+      parseInt(h.substring(4, 6), 16),
+    ];
+  }
+
+  private rgbToHex(r: number, g: number, b: number): string {
+    const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+    return `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
+  }
+
+  private applyColorMul(hex: string, mul: [number, number, number]): string {
+    const [r, g, b] = this.hexToRgb(hex);
+    return this.rgbToHex(r * mul[0], g * mul[1], b * mul[2]);
+  }
+
+  updateWeather(dt: number, camera: Camera) {
+    const wv = WEATHER_VISUAL[this.env.weather];
+    const tl = TIME_LIGHTING[this.env.timeOfDay];
+    if (wv.particlesPerFrame > 0) {
+      for (let i = 0; i < wv.particlesPerFrame; i++) {
+        const viewRangeX = this.viewportW / camera.zoom + 200;
+        const viewRangeY = this.viewportH / camera.zoom + 200;
+        const type: 'rain' | 'snow' = this.env.weather === 'snow' ? 'snow' : 'rain';
+        this.weatherParticles.push({
+          x: camera.x + (Math.random() - 0.5) * viewRangeX,
+          y: camera.y + (Math.random() - 0.5) * viewRangeY - viewRangeY * 0.5,
+          vx: wv.windX * (type === 'rain' ? 8 : 2),
+          vy: type === 'rain' ? 18 + Math.random() * 10 : 1 + Math.random() * 1.5,
+          size: type === 'rain' ? 8 + Math.random() * 6 : 2 + Math.random() * 3,
+          type,
+          life: 0,
+          maxLife: type === 'rain' ? 600 : 2000,
+        });
+      }
+    }
+    void tl;
+    for (let i = this.weatherParticles.length - 1; i >= 0; i--) {
+      const p = this.weatherParticles[i];
+      p.life += dt;
+      p.x += p.vx * dt / 16;
+      p.y += p.vy * dt / 16;
+      if (p.life > p.maxLife) this.weatherParticles.splice(i, 1);
+    }
+    if (this.weatherParticles.length > 800) {
+      this.weatherParticles.splice(0, this.weatherParticles.length - 800);
+    }
+  }
+
   clear() {
     const ctx = this.ctx;
-    ctx.fillStyle = GRASS_COLOR;
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+    const weatherVis = WEATHER_VISUAL[this.env.weather];
+    const [r, g, b] = this.hexToRgb(GRASS_COLOR);
+    const darken = weatherVis.grassDarken * 255;
+    const baseColor = this.rgbToHex(
+      (r + darken) * timeLight.colorMul[0],
+      (g + darken) * timeLight.colorMul[1],
+      (b + darken) * timeLight.colorMul[2],
+    );
+    ctx.fillStyle = baseColor;
     ctx.fillRect(0, 0, this.w, this.h);
   }
 
   clearViewport() {
     const ctx = this.ctx;
-    ctx.fillStyle = GRASS_COLOR;
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+    const weatherVis = WEATHER_VISUAL[this.env.weather];
+    const [r, g, b] = this.hexToRgb(GRASS_COLOR);
+    const darken = weatherVis.grassDarken * 255;
+    const baseColor = this.rgbToHex(
+      (r + darken) * timeLight.colorMul[0],
+      (g + darken) * timeLight.colorMul[1],
+      (b + darken) * timeLight.colorMul[2],
+    );
+    ctx.fillStyle = baseColor;
     ctx.fillRect(0, 0, this.viewportW, this.viewportH);
   }
 
@@ -348,6 +520,28 @@ export class Renderer {
 
   drawCar(car: Car, time: number) {
     const ctx = this.ctx;
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+
+    if (timeLight.headlightAlpha > 0.05 && !car.finished) {
+      ctx.save();
+      ctx.translate(car.x, car.y);
+      ctx.rotate(car.angle);
+      const hlAlpha = timeLight.headlightAlpha * 0.6;
+      const grad = ctx.createRadialGradient(20, 0, 8, 20, 0, 180);
+      grad.addColorStop(0, `rgba(255,240,180,${hlAlpha})`);
+      grad.addColorStop(0.4, `rgba(255,230,150,${hlAlpha * 0.5})`);
+      grad.addColorStop(1, 'rgba(255,220,120,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(12, -18);
+      ctx.lineTo(220, -70);
+      ctx.lineTo(220, 70);
+      ctx.lineTo(12, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
@@ -446,12 +640,14 @@ export class Renderer {
     const ctx = this.ctx;
     const w = this.viewportW;
     const h = this.viewportH;
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+    const baseAlpha = 0.55 * timeLight.vignetteMul;
     const grad = ctx.createRadialGradient(
       w / 2, h / 2, Math.min(w, h) * 0.3,
       w / 2, h / 2, Math.max(w, h) * 0.8
     );
     grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(1, `rgba(0,0,0,${baseAlpha})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   }
@@ -460,16 +656,112 @@ export class Renderer {
     const ctx = this.ctx;
     const w = this.viewportW;
     const h = this.viewportH;
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+    const mul = timeLight.scanlineMul;
     ctx.save();
-    ctx.globalAlpha = 0.08;
+    ctx.globalAlpha = 0.08 * mul;
     ctx.fillStyle = '#000000';
     for (let y = 0; y < h; y += 4) {
       ctx.fillRect(0, y, w, 2);
     }
-    ctx.globalAlpha = 0.04;
+    ctx.globalAlpha = 0.04 * mul;
     const barY = (time * 0.2) % h;
     ctx.fillRect(0, barY, w, 60);
     ctx.restore();
+  }
+
+  drawWeatherParticles() {
+    const ctx = this.ctx;
+    for (const p of this.weatherParticles) {
+      if (p.type === 'rain') {
+        ctx.strokeStyle = 'rgba(180,200,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.vx * 0.3, p.y + p.size);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        const s = p.size;
+        ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+      }
+    }
+  }
+
+  drawFog() {
+    const ctx = this.ctx;
+    const w = this.viewportW;
+    const h = this.viewportH;
+    const weatherVis = WEATHER_VISUAL[this.env.weather];
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+    const fogAlpha = Math.max(weatherVis.fogAlpha, timeLight.ambientAlpha);
+    if (fogAlpha <= 0) return;
+
+    let fogColor = 'rgba(200,200,210,';
+    if (this.env.timeOfDay === 'night') fogColor = 'rgba(30,30,60,';
+    else if (this.env.timeOfDay === 'sunset') fogColor = 'rgba(255,180,150,';
+    else if (this.env.timeOfDay === 'dawn') fogColor = 'rgba(255,220,200,';
+
+    const grad = ctx.createRadialGradient(
+      w / 2, h / 2, Math.min(w, h) * 0.1,
+      w / 2, h / 2, Math.max(w, h) * 0.8
+    );
+    grad.addColorStop(0, fogColor + '0)');
+    grad.addColorStop(0.5, fogColor + (fogAlpha * 0.5) + ')');
+    grad.addColorStop(1, fogColor + fogAlpha + ')');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  drawTimeTint() {
+    const ctx = this.ctx;
+    const w = this.viewportW;
+    const h = this.viewportH;
+    const timeLight = TIME_LIGHTING[this.env.timeOfDay];
+    if (timeLight.skyTint && timeLight.ambientAlpha > 0) {
+      ctx.fillStyle = timeLight.skyTint;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    if (timeLight.ambientAlpha > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${timeLight.ambientAlpha})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  drawRoadWet(track: Track) {
+    const ctx = this.ctx;
+    const weatherVis = WEATHER_VISUAL[this.env.weather];
+    if (weatherVis.roadWetAlpha <= 0) return;
+    const pts = track.points;
+    const hw = track.width / 2 * 0.9;
+    const alpha = weatherVis.roadWetAlpha;
+    const color = this.env.weather === 'snow'
+      ? `rgba(240,240,255,${alpha})`
+      : `rgba(150,180,220,${alpha})`;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i <= pts.length; i++) {
+      const p = pts[i % pts.length];
+      const dx = pts[(i + 1) % pts.length].x - pts[i % pts.length].x;
+      const dy = pts[(i + 1) % pts.length].y - pts[i % pts.length].y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len * hw;
+      const ny = dx / len * hw;
+      if (i === 0) ctx.moveTo(p.x + nx, p.y + ny);
+      else ctx.lineTo(p.x + nx, p.y + ny);
+    }
+    for (let i = pts.length; i >= 0; i--) {
+      const p = pts[i % pts.length];
+      const dx = pts[(i + 1) % pts.length].x - pts[i % pts.length].x;
+      const dy = pts[(i + 1) % pts.length].y - pts[i % pts.length].y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len * hw;
+      const ny = dx / len * hw;
+      ctx.lineTo(p.x - nx, p.y - ny);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
 
   drawCountdown(num: number, time: number) {

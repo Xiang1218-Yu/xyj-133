@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
-import type { GameMode } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor } from 'lucide-react';
+import type { GameMode, WeatherType, TimeOfDay } from '../engine/types';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, Cloud, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -9,12 +9,30 @@ export default function MainMenu() {
   const gameMode = useGameStore((s) => s.gameMode);
   const playerCount = useGameStore((s) => s.playerCount);
   const splitLayout = useGameStore((s) => s.splitLayout);
+  const weather = useGameStore((s) => s.weather);
+  const timeOfDay = useGameStore((s) => s.timeOfDay);
   const selectCarP1 = useGameStore((s) => s.selectCarP1);
   const selectCarP2 = useGameStore((s) => s.selectCarP2);
   const setGameMode = useGameStore((s) => s.setGameMode);
   const setPlayerCount = useGameStore((s) => s.setPlayerCount);
   const setSplitLayout = useGameStore((s) => s.setSplitLayout);
+  const setWeather = useGameStore((s) => s.setWeather);
+  const setTimeOfDay = useGameStore((s) => s.setTimeOfDay);
   const resetForCountdown = useGameStore((s) => s.resetForCountdown);
+
+  const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
+    { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
+    { id: 'rain', label: '雨天', desc: '路面湿滑', icon: CloudRain, color: '#33ccff', effect: '抓地力-30% · 易漂移' },
+    { id: 'snow', label: '雪天', desc: '积雪覆盖', icon: CloudSnow, color: '#aaddff', effect: '抓地力-50% · 极易漂移' },
+    { id: 'fog', label: '雾天', desc: '雾气弥漫', icon: CloudFog, color: '#bbbbcc', effect: '视野受限 · 抓地力-10%' },
+  ];
+
+  const timeOptions: { id: TimeOfDay; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
+    { id: 'day', label: '白天', desc: '阳光充足', icon: Sun, color: '#ffee88', effect: '标准光照' },
+    { id: 'dawn', label: '黎明', desc: '晨光熹微', icon: Sunrise, color: '#ffbb88', effect: '抓地力-4%' },
+    { id: 'sunset', label: '黄昏', desc: '夕阳西下', icon: Sunset, color: '#ff8844', effect: '抓地力-6%' },
+    { id: 'night', label: '夜晚', desc: '车灯照亮', icon: Moon, color: '#8888cc', effect: '抓地力-12% · 车头灯开启' },
+  ];
 
   const bar = (val: number, max: number, color = '#00ff88') => {
     const pct = Math.min(100, (val / max) * 100);
@@ -337,6 +355,74 @@ export default function MainMenu() {
               color="#ff3366"
             />
           )}
+        </div>
+
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-2 md:mb-3" style={{ color: '#aaffcc' }}>
+            <span className="text-[10px] md:text-xs tracking-widest">WEATHER 天气</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+            {weatherOptions.map((w) => {
+              const active = weather === w.id;
+              const Icon = w.icon;
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => setWeather(w.id)}
+                  className={`p-2 md:p-3 border-4 transition-all ${active ? 'translate-y-[-2px]' : ''}`}
+                  style={{
+                    background: active ? '#1a1a3a' : '#12122a',
+                    borderColor: active ? w.color : '#333366',
+                    boxShadow: active ? `0 0 20px ${w.color}44, 4px 4px 0 #000000` : '4px 4px 0 #000000',
+                  }}
+                >
+                  <div className="flex flex-col items-center gap-1 md:gap-2">
+                    <Icon className="w-5 h-5 md:w-7 md:h-7" style={{ color: active ? w.color : '#8888aa' }} />
+                    <div className="text-[10px] md:text-[11px] tracking-wider" style={{ color: active ? w.color : '#ccccdd' }}>
+                      {w.label}
+                    </div>
+                    <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                      {w.effect}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-2 md:mb-3" style={{ color: '#ffcc88' }}>
+            <span className="text-[10px] md:text-xs tracking-widest">TIME OF DAY 时间段</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+            {timeOptions.map((t) => {
+              const active = timeOfDay === t.id;
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTimeOfDay(t.id)}
+                  className={`p-2 md:p-3 border-4 transition-all ${active ? 'translate-y-[-2px]' : ''}`}
+                  style={{
+                    background: active ? '#1a1a3a' : '#12122a',
+                    borderColor: active ? t.color : '#333366',
+                    boxShadow: active ? `0 0 20px ${t.color}44, 4px 4px 0 #000000` : '4px 4px 0 #000000',
+                  }}
+                >
+                  <div className="flex flex-col items-center gap-1 md:gap-2">
+                    <Icon className="w-5 h-5 md:w-7 md:h-7" style={{ color: active ? t.color : '#8888aa' }} />
+                    <div className="text-[10px] md:text-[11px] tracking-wider" style={{ color: active ? t.color : '#ccccdd' }}>
+                      {t.label}
+                    </div>
+                    <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                      {t.effect}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <button

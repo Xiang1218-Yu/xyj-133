@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout } from '../engine/types';
+import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
 
 interface GameState {
@@ -15,6 +15,13 @@ interface GameState {
   winnerId: number | null;
   rankings: number[];
   raceTime: number;
+  weather: WeatherType;
+  timeOfDay: TimeOfDay;
+  replayData: ReplayData | null;
+  replayPlaying: boolean;
+  replaySpeed: number;
+  replayViewMode: ReplayViewMode;
+  replayFrameIndex: number;
   setPhase: (p: GamePhase) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
@@ -27,6 +34,14 @@ interface GameState {
   finishRace: (winnerId: number, rankings: number[]) => void;
   resetForCountdown: () => void;
   backToMenu: () => void;
+  setWeather: (w: WeatherType) => void;
+  setTimeOfDay: (t: TimeOfDay) => void;
+  startReplay: (data: ReplayData) => void;
+  exitReplay: () => void;
+  setReplayPlaying: (p: boolean) => void;
+  setReplaySpeed: (s: number) => void;
+  setReplayViewMode: (m: ReplayViewMode) => void;
+  setReplayFrameIndex: (i: number) => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -44,6 +59,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   winnerId: null,
   rankings: [],
   raceTime: 0,
+  weather: 'clear',
+  timeOfDay: 'day',
+  replayData: null,
+  replayPlaying: true,
+  replaySpeed: 1,
+  replayViewMode: 'follow_p1',
+  replayFrameIndex: 0,
 
   setPhase: (p) => set({ phase: p }),
   selectCarP1: (id) => set({ selectedCarIdP1: id }),
@@ -54,12 +76,34 @@ export const useGameStore = create<GameState>((set, get) => ({
   setCountdown: (n) => set({ countdown: n }),
   updateCars: (cars) => set({ cars }),
   updateRaceTime: (t) => set({ raceTime: t }),
+  setWeather: (w) => set({ weather: w }),
+  setTimeOfDay: (t) => set({ timeOfDay: t }),
 
   finishRace: (winnerId, rankings) => set({
     phase: 'finished',
     winnerId,
     rankings,
   }),
+
+  startReplay: (data) => set({
+    phase: 'replay',
+    replayData: data,
+    replayPlaying: true,
+    replaySpeed: 1,
+    replayViewMode: 'follow_p1',
+    replayFrameIndex: 0,
+  }),
+  exitReplay: () => set({
+    phase: 'menu',
+    replayData: null,
+    replayPlaying: true,
+    replaySpeed: 1,
+    replayFrameIndex: 0,
+  }),
+  setReplayPlaying: (p) => set({ replayPlaying: p }),
+  setReplaySpeed: (s) => set({ replaySpeed: s }),
+  setReplayViewMode: (m) => set({ replayViewMode: m }),
+  setReplayFrameIndex: (i) => set({ replayFrameIndex: i }),
 
   resetForCountdown: () => {
     const { selectedCarIdP1, selectedCarIdP2, gameMode, playerCount } = get();
@@ -95,6 +139,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       winnerId: null,
       rankings: [],
       raceTime: 0,
+      replayData: null,
+      replayFrameIndex: 0,
       cars: carIds.map((tplId, i) => ({
         id: i,
         name: '',
@@ -132,5 +178,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     winnerId: null,
     rankings: [],
     raceTime: 0,
+    replayData: null,
+    replayFrameIndex: 0,
   }),
 }));

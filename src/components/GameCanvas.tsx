@@ -3,7 +3,7 @@ import { useGameStore, TOTAL_LAPS } from '../store/gameStore';
 import { Renderer } from '../engine/renderer';
 import type {
   Car, TireMark, Particle, ItemBoxInstance, BananaInstance, MissileInstance, Camera, InputState,
-  GameMode, SplitScreenLayout,
+  GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
 import { MAIN_TRACK, getStartPositions, getItemBoxPositions } from '../engine/track';
@@ -17,6 +17,7 @@ import {
   updateBananas, updateMissiles, updateParticles,
 } from '../engine/items';
 import { lerp, clamp } from '../utils/math';
+import { ReplayRecorder, ReplayPlayer } from '../engine/replay';
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,6 +32,11 @@ export default function GameCanvas() {
   const selectedCarIdP2 = useGameStore((s) => s.selectedCarIdP2);
   const finishRace = useGameStore((s) => s.finishRace);
   const updateRaceTime = useGameStore((s) => s.updateRaceTime);
+  const weather = useGameStore((s) => s.weather);
+  const timeOfDay = useGameStore((s) => s.timeOfDay);
+  const replayData = useGameStore((s) => s.replayData);
+  const startReplay = useGameStore((s) => s.startReplay);
+  const setReplayFrameIndex = useGameStore((s) => s.setReplayFrameIndex);
 
   const stateRef = useRef<{
     cars: Car[];
@@ -54,6 +60,11 @@ export default function GameCanvas() {
     gameMode: GameMode;
     playerCount: 1 | 2;
     splitLayout: SplitScreenLayout;
+    recorder: ReplayRecorder;
+    replayPlayer: ReplayPlayer | null;
+    replayData: ReplayData | null;
+    env: EnvConfig;
+    phase: string;
   } | null>(null);
 
   if (!stateRef.current) {
@@ -82,6 +93,11 @@ export default function GameCanvas() {
       gameMode: 'grandprix',
       playerCount: 1,
       splitLayout: 'horizontal',
+      recorder: new ReplayRecorder(),
+      replayPlayer: null,
+      replayData: null,
+      env: { weather: 'clear', timeOfDay: 'day' },
+      phase: 'menu',
     };
   }
 
@@ -96,6 +112,18 @@ export default function GameCanvas() {
     st.gameMode = gameMode;
     st.playerCount = playerCount;
     st.splitLayout = splitLayout;
+    st.env = { weather: weather as WeatherType, timeOfDay: timeOfDay as TimeOfDay };
+    st.phase = phase;
+
+    if (phase === 'replay' && replayData && (!st.replayPlayer || st.replayData !== replayData)) {
+      st.replayPlayer = new ReplayPlayer(replayData);
+      st.replayData = replayData;
+      st.replayPlayer.setOnFrameChange((idx) => setReplayFrameIndex(idx));
+      st.env = replayData.env;
+    }
+    if (phase !== 'replay') {
+      st.replayPlayer = null;
+    }
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -109,6 +137,7 @@ export default function GameCanvas() {
       ctx.imageSmoothingEnabled = false;
       if (st.renderer) st.renderer.resize(w, h);
       else st.renderer = new Renderer(ctx, w, h);
+      st.renderer.setEnv(st.env);
     };
     resize();
     window.addEventListener('resize', resize);
@@ -199,7 +228,21 @@ export default function GameCanvas() {
       }
     };
 
+    const setupRecording = () => {
+      st.recorder = new ReplayRecorder();
+      st.recorder.start(
+        st.cars.map((c) => ({ ...c })),
+        st.gameMode,
+        st.playerCount,
+        TOTAL_LAPS,
+        st.env,
+      );
+    };
+
     initializeCars();
+    if (phase === 'countdown' || phase === 'racing' || phase === 'finished') {
+      setupRecording();
+    }
     st.countdownValue = 3;
     st.countdownTimer = 0;
     st.initialized = true;
@@ -238,11 +281,16 @@ export default function GameCanvas() {
       camera.shake = Math.max(0, camera.shake - 0.5);
     };
 
-    const renderScene = (camera: Camera, ts: number) => {
+    const renderScene = (camera: Camera, ts: number, envOverride?: EnvConfig) => {
       const renderer = st.renderer!;
+      if (envOverride) renderer.setEnv(envOverride);
+      else renderer.setEnv(st.env);
+
+      renderer.updateWeather(16, camera);
       renderer.beginCamera(camera);
       renderer.drawGrassTexture(MAIN_TRACK);
       renderer.drawTrack(MAIN_TRACK, ts);
+      renderer.drawRoadWet(MAIN_TRACK);
       renderer.drawTireMarks(st.tireMarks);
       if (st.gameMode !== 'timeattack') {
         renderer.drawItemBoxes(st.itemBoxes, ts);
@@ -254,7 +302,10 @@ export default function GameCanvas() {
         renderer.drawCar(car, ts);
       }
       renderer.drawParticles(st.particles);
+      renderer.drawWeatherParticles();
       renderer.endCamera();
+      renderer.drawFog();
+      renderer.drawTimeTint();
       renderer.drawVignette();
       renderer.drawScanlines(ts);
     };
@@ -262,7 +313,10 @@ export default function GameCanvas() {
     const getViewports = (): { x: number; y: number; width: number; height: number }[] => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      if (st.playerCount === 1) {
+      if (st.playerCount === 1 && st.phase !== 'replay') {
+        return [{ x: 0, y: 0, width: w, height: h }];
+      }
+      if (st.phase === 'replay') {
         return [{ x: 0, y: 0, width: w, height: h }];
       }
       if (st.splitLayout === 'horizontal') {
@@ -288,6 +342,38 @@ export default function GameCanvas() {
       }
 
       const currentPhase = useGameStore.getState().phase;
+      st.phase = currentPhase;
+
+      if (currentPhase === 'replay' && st.replayPlayer) {
+        const rp = st.replayPlayer;
+        const store = useGameStore.getState();
+        if (store.replayPlaying !== rp.isPlaying()) {
+          if (store.replayPlaying) rp.play();
+          else rp.pause();
+        }
+        if (Math.abs(store.replaySpeed - rp.getSpeed()) > 0.001) {
+          rp.setSpeed(store.replaySpeed);
+        }
+        if (store.replayViewMode !== rp.getViewMode()) {
+          rp.setViewMode(store.replayViewMode);
+        }
+        if (store.replayFrameIndex !== rp.getCurrentFrameIndex() && !rp.isPlaying()) {
+          rp.seek(store.replayFrameIndex);
+        }
+
+        rp.tick(ts);
+        st.cars = rp.getCars();
+        st.particles = rp.getParticles();
+        st.tireMarks = rp.getTireMarks();
+        st.bananas = rp.getBananas();
+        st.missiles = rp.getMissiles();
+        st.gameMode = rp.getGameMode();
+        st.playerCount = rp.getPlayerCount();
+        const rt = rp.getCurrentRaceTime();
+        if (useGameStore.getState().raceTime !== rt) {
+          updateRaceTime(rt);
+        }
+      }
 
       if (currentPhase === 'countdown') {
         st.countdownTimer += dt;
@@ -318,7 +404,7 @@ export default function GameCanvas() {
 
           if (car.itemCooldown > 0) car.itemCooldown -= dt;
 
-          updateCarPhysics(car, inp, dt, MAIN_TRACK);
+          updateCarPhysics(car, inp, dt, MAIN_TRACK, st.env);
 
           if (car.drifting && car.tireMarkTimer > 40) {
             car.tireMarkTimer = 0;
@@ -335,7 +421,7 @@ export default function GameCanvas() {
                 vx: (Math.random() - 0.5) * 0.8,
                 vy: (Math.random() - 0.5) * 0.8,
                 life: 500, maxLife: 500,
-                color: '#aaaaaa', size: 3,
+                color: st.env.weather === 'rain' ? '#88aacc' : '#aaaaaa', size: 3,
               });
             }
           }
@@ -416,12 +502,17 @@ export default function GameCanvas() {
                 const anyPlayerFinished = st.cars.some((c) => c.isPlayer && c.finished);
                 if (!st.raceFinished && (allFinished || anyPlayerFinished)) {
                   st.raceFinished = true;
+                  st.recorder.finish(st.rankings);
+                  const recData = st.recorder.getData();
                   setTimeout(() => {
                     const finalRank = [...st.rankings];
                     for (const c of st.cars) {
                       if (!finalRank.includes(c.id)) finalRank.push(c.id);
                     }
                     const winner = finalRank[0];
+                    if (recData) {
+                      (window as unknown as { __lastReplay?: ReplayData }).__lastReplay = recData;
+                    }
                     finishRace(winner, finalRank);
                   }, 1500);
                 }
@@ -444,11 +535,19 @@ export default function GameCanvas() {
           st.tireMarks[i].alpha -= 0.0015 * dt / 16;
           if (st.tireMarks[i].alpha <= 0) st.tireMarks.splice(i, 1);
         }
+
+        const elapsedRec = ts - st.raceStartTime;
+        st.recorder.record(
+          st.cars, st.particles, st.tireMarks,
+          st.bananas, st.missiles, elapsedRec, ts,
+        );
       }
 
-      for (const car of st.cars) {
-        if (car.isPlayer && car.playerIndex >= 0) {
-          updateCameraForCar(car, st.cameras[car.playerIndex]);
+      if (currentPhase !== 'replay') {
+        for (const car of st.cars) {
+          if (car.isPlayer && car.playerIndex >= 0) {
+            updateCameraForCar(car, st.cameras[car.playerIndex]);
+          }
         }
       }
 
@@ -460,19 +559,27 @@ export default function GameCanvas() {
 
       for (let vIdx = 0; vIdx < viewports.length; vIdx++) {
         const vp = viewports[vIdx];
-        const camIdx = playerCars[vIdx]?.playerIndex ?? 0;
-        const camera = st.cameras[camIdx];
-        const playerCar = playerCars[vIdx];
+        let camera: Camera;
+        let playerCar: Car | undefined;
+
+        if (currentPhase === 'replay' && st.replayPlayer) {
+          camera = st.replayPlayer.getCameraForViewport(vIdx);
+          playerCar = playerCars[vIdx];
+        } else {
+          const camIdx = playerCars[vIdx]?.playerIndex ?? 0;
+          camera = st.cameras[camIdx];
+          playerCar = playerCars[vIdx];
+        }
 
         renderer.setViewport(vp);
         renderer.clearViewport();
-        renderScene(camera, ts);
+        renderScene(camera, ts, currentPhase === 'replay' && st.replayPlayer ? st.replayPlayer.getEnv() : undefined);
 
         if (currentPhase === 'countdown') {
           renderer.drawCountdown(st.countdownValue, ts);
         }
 
-        if (viewports.length > 1 && playerCar) {
+        if (viewports.length > 1 && playerCar && currentPhase !== 'replay') {
           const indX = 10;
           const indY = 10;
           renderer.drawPlayerIndicator(indX, indY, playerCar.playerIndex as 0 | 1);
@@ -481,11 +588,13 @@ export default function GameCanvas() {
         renderer.restoreViewport();
       }
 
-      if (viewports.length > 1) {
+      if (viewports.length > 1 && currentPhase !== 'replay') {
         renderer.drawSplitDivider(st.splitLayout);
       }
 
-      if (phase !== 'finished') {
+      if (phase !== 'finished' && phase !== 'replay') {
+        useGameStore.setState({ cars: [...st.cars] });
+      } else if (phase === 'replay') {
         useGameStore.setState({ cars: [...st.cars] });
       }
 
@@ -498,7 +607,7 @@ export default function GameCanvas() {
       window.removeEventListener('resize', resize);
       input.destroy();
     };
-  }, [selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, splitLayout]);
+  }, [selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, splitLayout, weather, timeOfDay, replayData]);
 
   useEffect(() => {
     if (phase === 'countdown' && stateRef.current?.initialized) {
@@ -506,6 +615,7 @@ export default function GameCanvas() {
       st.gameMode = gameMode;
       st.playerCount = playerCount;
       st.splitLayout = splitLayout;
+      st.env = { weather: weather as WeatherType, timeOfDay: timeOfDay as TimeOfDay };
 
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -522,6 +632,7 @@ export default function GameCanvas() {
       ctx.imageSmoothingEnabled = false;
       if (st.renderer) st.renderer.resize(w, h);
       else st.renderer = new Renderer(ctx, w, h);
+      st.renderer.setEnv(st.env);
 
       let carIds: number[] = [];
       let isPlayerFlags: boolean[] = [];
@@ -604,13 +715,23 @@ export default function GameCanvas() {
         st.itemBoxes = [];
       }
 
+      st.recorder = new ReplayRecorder();
+      st.recorder.start(
+        st.cars.map((c) => ({ ...c })),
+        st.gameMode,
+        st.playerCount,
+        TOTAL_LAPS,
+        st.env,
+      );
+
       st.countdownValue = 3;
       st.countdownTimer = 0;
       setCountdown(3);
     }
-  }, [phase === 'countdown' ? 'countdown-start' : '', gameMode, playerCount, splitLayout, selectedCarIdP1, selectedCarIdP2]);
+  }, [phase === 'countdown' ? 'countdown-start' : '', gameMode, playerCount, splitLayout, selectedCarIdP1, selectedCarIdP2, weather, timeOfDay]);
 
   void countdown;
+  void startReplay;
 
   return (
     <canvas

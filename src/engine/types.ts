@@ -1,10 +1,16 @@
-export type GamePhase = 'menu' | 'countdown' | 'racing' | 'finished';
+export type GamePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'replay';
 
 export type ItemType = 'boost' | 'shield' | 'banana' | 'missile';
 
 export type GameMode = 'grandprix' | 'timeattack';
 
 export type SplitScreenLayout = 'horizontal' | 'vertical';
+
+export type WeatherType = 'clear' | 'rain' | 'snow' | 'fog';
+
+export type TimeOfDay = 'day' | 'sunset' | 'night' | 'dawn';
+
+export type ReplayViewMode = 'follow_p1' | 'follow_p2' | 'follow_leader' | 'free' | 'topdown';
 
 export interface GameConfig {
   mode: GameMode;
@@ -141,4 +147,47 @@ export interface Camera {
   y: number;
   zoom: number;
   shake: number;
+}
+
+export interface EnvConfig {
+  weather: WeatherType;
+  timeOfDay: TimeOfDay;
+}
+
+export interface CarSnapshot {
+  id: number;
+  x: number;
+  y: number;
+  angle: number;
+  speed: number;
+  lap: number;
+  checkpoint: number;
+  finished: boolean;
+  hasShield: boolean;
+  boostTime: number;
+  spinTime: number;
+  drifting: boolean;
+  driftAngle: number;
+  currentItem: ItemType | null;
+}
+
+export interface ReplayFrame {
+  frameIndex: number;
+  raceTime: number;
+  cars: CarSnapshot[];
+  particles: Particle[];
+  tireMarks: TireMark[];
+  bananas: BananaInstance[];
+  missiles: MissileInstance[];
+}
+
+export interface ReplayData {
+  frames: ReplayFrame[];
+  totalRaceTime: number;
+  initialCars: Car[];
+  gameMode: GameMode;
+  playerCount: 1 | 2;
+  totalLaps: number;
+  rankings: number[];
+  env: EnvConfig;
 }

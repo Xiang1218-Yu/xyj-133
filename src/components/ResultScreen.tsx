@@ -1,8 +1,8 @@
-import type { Car } from '../engine/types';
+import type { Car, ReplayData } from '../engine/types';
 import { useGameStore } from '../store/gameStore';
 import { formatTime } from '../utils/math';
 import { CAR_TEMPLATES } from '../engine/cars';
-import { RotateCcw, Home, Timer, Trophy, Users } from 'lucide-react';
+import { RotateCcw, Home, Timer, Trophy, Users, Play } from 'lucide-react';
 
 export default function ResultScreen() {
   const cars = useGameStore((s) => s.cars);
@@ -11,8 +11,11 @@ export default function ResultScreen() {
   const playerCount = useGameStore((s) => s.playerCount);
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
   const selectedCarIdP2 = useGameStore((s) => s.selectedCarIdP2);
+  const weather = useGameStore((s) => s.weather);
+  const timeOfDay = useGameStore((s) => s.timeOfDay);
   const resetForCountdown = useGameStore((s) => s.resetForCountdown);
   const backToMenu = useGameStore((s) => s.backToMenu);
+  const startReplay = useGameStore((s) => s.startReplay);
 
   const isTimeAttack = gameMode === 'timeattack';
   const isTwoPlayer = playerCount === 2;
@@ -319,7 +322,32 @@ export default function ResultScreen() {
           </div>
         )}
 
+        <div className="flex justify-center mb-2 gap-2 md:gap-3 text-[9px] md:text-[10px] tracking-wider shrink-0 flex-wrap">
+          <div className="px-3 py-1.5 border-2" style={{ background: '#15152e', borderColor: '#aaddff', color: '#aaddff' }}>
+            🌤 {weather === 'clear' ? '晴天' : weather === 'rain' ? '雨天' : weather === 'snow' ? '雪天' : '雾天'}
+          </div>
+          <div className="px-3 py-1.5 border-2" style={{ background: '#15152e', borderColor: '#ffcc88', color: '#ffcc88' }}>
+            {timeOfDay === 'day' ? '☀ 白天' : timeOfDay === 'dawn' ? '🌅 黎明' : timeOfDay === 'sunset' ? '🌇 黄昏' : '🌙 夜晚'}
+          </div>
+        </div>
+
         <div className="flex gap-2 md:gap-4 justify-center flex-wrap shrink-0">
+          <button
+            onClick={() => {
+              const lastReplay = (window as unknown as { __lastReplay?: ReplayData }).__lastReplay;
+              if (lastReplay) startReplay(lastReplay);
+            }}
+            className="px-5 md:px-8 py-2.5 md:py-3.5 flex items-center gap-2 text-[10px] md:text-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+            style={{
+              background: '#33ccff',
+              color: '#002244',
+              border: '4px solid #1188bb',
+              boxShadow: '4px 4px 0 #000000',
+            }}
+          >
+            <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+            WATCH REPLAY
+          </button>
           <button
             onClick={resetForCountdown}
             className="px-5 md:px-8 py-2.5 md:py-3.5 flex items-center gap-2 text-[10px] md:text-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all"

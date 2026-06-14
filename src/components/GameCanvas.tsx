@@ -30,6 +30,8 @@ export default function GameCanvas() {
   const splitLayout = useGameStore((s) => s.splitLayout);
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
   const selectedCarIdP2 = useGameStore((s) => s.selectedCarIdP2);
+  const customizationP1 = useGameStore((s) => s.customizationP1);
+  const customizationP2 = useGameStore((s) => s.customizationP2);
   const finishRace = useGameStore((s) => s.finishRace);
   const updateRaceTime = useGameStore((s) => s.updateRaceTime);
   const weather = useGameStore((s) => s.weather);
@@ -174,6 +176,25 @@ export default function GameCanvas() {
       const starts = getStartPositions(MAIN_TRACK, carIds.length);
       const aiSkills = [0, 0.82, 0.68, 0.76];
 
+      const getCustomizationForCar = (tplId: number, isPlayer: boolean, playerIdx: 0 | 1 | -1) => {
+        if (isPlayer) {
+          return playerIdx === 0
+            ? { ...customizationP1 }
+            : { ...customizationP2 };
+        }
+        const tpl = getCarTemplate(tplId);
+        return {
+          bodyColor: tpl.color,
+          stripeColor: '#ffffff',
+          stripePattern: 'none' as const,
+          stripeEnabled: false,
+          numberColor: '#ffffff',
+          number: `0${tplId + 1}`,
+          numberEnabled: true,
+          wheelColor: '#111111',
+        };
+      };
+
       st.cars = carIds.map((tplId, i) => {
         const tpl = getCarTemplate(tplId);
         const pos = starts[i];
@@ -215,6 +236,7 @@ export default function GameCanvas() {
           aiTargetIdx: 0,
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
+          customization: getCustomizationForCar(tplId, isPlayerFlags[i], playerIndices[i]),
         };
       });
 
@@ -703,6 +725,25 @@ export default function GameCanvas() {
       const starts = getStartPositions(MAIN_TRACK, carIds.length);
       const aiSkills = [0, 0.82, 0.68, 0.76];
 
+      const getCustomizationForCar2 = (tplId: number, isPlayer: boolean, playerIdx: 0 | 1 | -1) => {
+        if (isPlayer) {
+          return playerIdx === 0
+            ? { ...customizationP1 }
+            : { ...customizationP2 };
+        }
+        const tpl = getCarTemplate(tplId);
+        return {
+          bodyColor: tpl.color,
+          stripeColor: '#ffffff',
+          stripePattern: 'none' as const,
+          stripeEnabled: false,
+          numberColor: '#ffffff',
+          number: `0${tplId + 1}`,
+          numberEnabled: true,
+          wheelColor: '#111111',
+        };
+      };
+
       st.cars = carIds.map((tplId, i) => {
         const tpl = getCarTemplate(tplId);
         const pos = starts[i];
@@ -744,6 +785,7 @@ export default function GameCanvas() {
           aiTargetIdx: 0,
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
+          customization: getCustomizationForCar2(tplId, isPlayerFlags[i], playerIndices[i]),
         };
       });
 

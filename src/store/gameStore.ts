@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode } from '../engine/types';
+import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, StripePattern } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
 
 interface GameState {
@@ -22,6 +22,9 @@ interface GameState {
   replaySpeed: number;
   replayViewMode: ReplayViewMode;
   replayFrameIndex: number;
+  customizationP1: CarCustomization;
+  customizationP2: CarCustomization;
+  customizeTarget: 1 | 2;
   setPhase: (p: GamePhase) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
@@ -42,9 +45,27 @@ interface GameState {
   setReplaySpeed: (s: number) => void;
   setReplayViewMode: (m: ReplayViewMode) => void;
   setReplayFrameIndex: (i: number) => void;
+  openCustomizer: (target: 1 | 2) => void;
+  closeCustomizer: () => void;
+  setCustomizeTarget: (target: 1 | 2) => void;
+  updateCustomizationP1: (patch: Partial<CarCustomization>) => void;
+  updateCustomizationP2: (patch: Partial<CarCustomization>) => void;
+  resetCustomization: (target: 1 | 2) => void;
+  applyTemplateToCustomization: (target: 1 | 2, templateId: number) => void;
 }
 
 export const TOTAL_LAPS = 3;
+
+const createDefaultCustomization = (template: typeof CAR_TEMPLATES[0]): CarCustomization => ({
+  bodyColor: template.color,
+  stripeColor: '#ffffff',
+  stripePattern: 'single',
+  stripeEnabled: false,
+  numberColor: '#ffffff',
+  number: '01',
+  numberEnabled: true,
+  wheelColor: '#111111',
+});
 
 export const useGameStore = create<GameState>((set, get) => ({
   phase: 'menu',
@@ -66,6 +87,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   replaySpeed: 1,
   replayViewMode: 'follow_p1',
   replayFrameIndex: 0,
+  customizationP1: createDefaultCustomization(CAR_TEMPLATES[0]),
+  customizationP2: createDefaultCustomization(CAR_TEMPLATES[1]),
+  customizeTarget: 1,
 
   setPhase: (p) => set({ phase: p }),
   selectCarP1: (id) => set({ selectedCarIdP1: id }),
@@ -106,31 +130,40 @@ export const useGameStore = create<GameState>((set, get) => ({
   setReplayFrameIndex: (i) => set({ replayFrameIndex: i }),
 
   resetForCountdown: () => {
-    const { selectedCarIdP1, selectedCarIdP2, gameMode, playerCount } = get();
+    const { selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, customizationP1, customizationP2 } = get();
     
     let carIds: number[] = [];
     let isPlayerFlags: boolean[] = [];
     let playerIndices: (0 | 1 | -1)[] = [];
+    let customizations: (CarCustomization | null)[] = [];
     
     if (gameMode === 'timeattack' || gameMode === 'drift') {
       if (playerCount === 2) {
         carIds = [selectedCarIdP1, selectedCarIdP2];
         isPlayerFlags = [true, true];
         playerIndices = [0, 1];
+        customizations = [{ ...customizationP1 }, { ...customizationP2 }];
       } else {
         carIds = [selectedCarIdP1];
         isPlayerFlags = [true];
         playerIndices = [0];
+        customizations = [{ ...customizationP1 }];
       }
     } else if (playerCount === 2) {
       carIds = [selectedCarIdP1, selectedCarIdP2];
       isPlayerFlags = [true, true];
       playerIndices = [0, 1];
+      customizations = [{ ...customizationP1 }, { ...customizationP2 }];
     } else {
       const aiIds = CAR_TEMPLATES.map((c) => c.id).filter((id) => id !== selectedCarIdP1).slice(0, 3);
       carIds = [selectedCarIdP1, ...aiIds];
       isPlayerFlags = carIds.map((_, i) => i === 0);
       playerIndices = carIds.map((_, i) => (i === 0 ? 0 : -1)) as (0 | 1 | -1)[];
+      customizations = carIds.map((tplId, i) => {
+        if (i === 0) return { ...customizationP1 };
+        const tpl = CAR_TEMPLATES[tplId];
+        return createDefaultCustomization(tpl);
+      });
     }
 
     set({
@@ -173,6 +206,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         aiTargetIdx: 0,
         aiSkill: isPlayerFlags[i] ? 0 : [0.8, 0.65, 0.75][i - 1] ?? 0.7,
         itemCooldown: 0,
+        customization: customizations[i],
       })),
     });
   },
@@ -186,4 +220,62 @@ export const useGameStore = create<GameState>((set, get) => ({
     replayData: null,
     replayFrameIndex: 0,
   }),
+
+  openCustomizer: (target) => set({
+    phase: 'customize',
+    customizeTarget: target,
+  }),
+
+  closeCustomizer: () => set({
+    phase: 'menu',
+  }),
+
+  setCustomizeTarget: (target) => set({
+    customizeTarget: target,
+  }),
+
+  updateCustomizationP1: (patch) => set((state) => ({
+    customizationP1: { ...state.customizationP1, ...patch },
+  })),
+
+  updateCustomizationP2: (patch) => set((state) => ({
+    customizationP2: { ...state.customizationP2, ...patch },
+  })),
+
+  resetCustomization: (target) => {
+    const { selectedCarIdP1, selectedCarIdP2 } = get();
+    const tplId = target === 1 ? selectedCarIdP1 : selectedCarIdP2;
+    const tpl = CAR_TEMPLATES[tplId];
+    const def = createDefaultCustomization(tpl);
+    if (target === 1) {
+      set({ customizationP1: def });
+    } else {
+      set({ customizationP2: def });
+    }
+  },
+
+  applyTemplateToCustomization: (target, templateId) => {
+    const tpl = CAR_TEMPLATES[templateId % CAR_TEMPLATES.length];
+    const { selectedCarIdP1, selectedCarIdP2 } = get();
+    const currentTplId = target === 1 ? selectedCarIdP1 : selectedCarIdP2;
+    const currentTpl = CAR_TEMPLATES[currentTplId];
+    if (target === 1) {
+      set((state) => ({
+        customizationP1: {
+          ...state.customizationP1,
+          bodyColor: tpl.color,
+          stripeColor: tpl.colorDark,
+        },
+      }));
+    } else {
+      set((state) => ({
+        customizationP2: {
+          ...state.customizationP2,
+          bodyColor: tpl.color,
+          stripeColor: tpl.colorDark,
+        },
+      }));
+    }
+    void currentTpl;
+  },
 }));

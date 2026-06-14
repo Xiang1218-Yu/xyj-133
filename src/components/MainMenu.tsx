@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
 import type { GameMode, WeatherType, TimeOfDay } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -19,6 +19,7 @@ export default function MainMenu() {
   const setWeather = useGameStore((s) => s.setWeather);
   const setTimeOfDay = useGameStore((s) => s.setTimeOfDay);
   const resetForCountdown = useGameStore((s) => s.resetForCountdown);
+  const openCustomizer = useGameStore((s) => s.openCustomizer);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -48,11 +49,12 @@ export default function MainMenu() {
     );
   };
 
-  const CarSelector = ({ selectedId, onSelect, label, color }: {
+  const CarSelector = ({ selectedId, onSelect, label, color, playerIdx }: {
     selectedId: number;
     onSelect: (id: number) => void;
     label: string;
     color: string;
+    playerIdx: 1 | 2;
   }) => {
     const car = CAR_TEMPLATES[selectedId];
     const prev = () => onSelect((selectedId - 1 + CAR_TEMPLATES.length) % CAR_TEMPLATES.length);
@@ -109,6 +111,19 @@ export default function MainMenu() {
                 </svg>
               </div>
             </div>
+            <button
+              onClick={() => openCustomizer(playerIdx)}
+              className="w-full mb-3 px-2 py-2 md:py-2.5 flex items-center justify-center gap-2 text-[9px] md:text-[10px] hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+              style={{
+                background: '#1a1a3a',
+                color: color,
+                border: `3px solid ${color}`,
+                boxShadow: `2px 2px 0 #000000`,
+              }}
+            >
+              <Palette className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              定制外观
+            </button>
             <div className="space-y-2 text-left text-[9px] md:text-[10px]">
               <div className="flex items-center gap-2">
                 <span className="w-12 text-[#aaaaee]">SPD</span>
@@ -352,6 +367,7 @@ export default function MainMenu() {
             onSelect={selectCarP1}
             label="PLAYER 1"
             color="#00ff88"
+            playerIdx={1}
           />
           {playerCount === 2 && (
             <CarSelector
@@ -359,6 +375,7 @@ export default function MainMenu() {
               onSelect={selectCarP2}
               label="PLAYER 2"
               color="#ff3366"
+              playerIdx={2}
             />
           )}
         </div>

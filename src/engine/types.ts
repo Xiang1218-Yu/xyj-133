@@ -1,4 +1,4 @@
-export type GamePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'replay';
+export type GamePhase = 'menu' | 'customize' | 'countdown' | 'racing' | 'finished' | 'replay';
 
 export type ItemType = 'boost' | 'shield' | 'banana' | 'missile';
 
@@ -58,6 +58,7 @@ export interface Car {
   aiTargetIdx: number;
   aiSkill: number;
   itemCooldown: number;
+  customization: CarCustomization | null;
 }
 
 export interface SplitViewport {
@@ -66,6 +67,19 @@ export interface SplitViewport {
   width: number;
   height: number;
   camera: Camera;
+}
+
+export type StripePattern = 'none' | 'single' | 'double' | 'checker' | 'flame';
+
+export interface CarCustomization {
+  bodyColor: string;
+  stripeColor: string;
+  stripePattern: StripePattern;
+  stripeEnabled: boolean;
+  numberColor: string;
+  number: string;
+  numberEnabled: boolean;
+  wheelColor: string;
 }
 
 export interface CarTemplate {

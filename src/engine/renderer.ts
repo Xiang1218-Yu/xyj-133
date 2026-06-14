@@ -173,6 +173,12 @@ export class Renderer {
     return this.rgbToHex(r * mul[0], g * mul[1], b * mul[2]);
   }
 
+  private darkenColor(hex: string, amount: number = 0.35): string {
+    const [r, g, b] = this.hexToRgb(hex);
+    const d = (v: number) => Math.max(0, Math.round(v * (1 - amount)));
+    return `#${d(r).toString(16).padStart(2, '0')}${d(g).toString(16).padStart(2, '0')}${d(b).toString(16).padStart(2, '0')}`;
+  }
+
   updateWeather(dt: number, camera: Camera) {
     const wv = WEATHER_VISUAL[this.env.weather];
     const tl = TIME_LIGHTING[this.env.timeOfDay];
@@ -522,6 +528,11 @@ export class Renderer {
     const ctx = this.ctx;
     const timeLight = TIME_LIGHTING[this.env.timeOfDay];
 
+    const cust = car.customization;
+    const bodyColor = cust ? cust.bodyColor : car.color;
+    const bodyDark = cust ? this.darkenColor(cust.bodyColor, 0.3) : car.colorDark;
+    const wheelColor = cust ? cust.wheelColor : '#111111';
+
     if (timeLight.headlightAlpha > 0.05 && !car.finished) {
       ctx.save();
       ctx.translate(car.x, car.y);
@@ -567,7 +578,7 @@ export class Renderer {
     }
 
     const wheelOffset = car.drifting ? 0.12 * Math.sign(car.driftAngle || 1) : 0;
-    ctx.fillStyle = '#111111';
+    ctx.fillStyle = wheelColor;
     ctx.fillRect(-12, -13, 8, 5);
     ctx.fillRect(-12, 8, 8, 5);
     ctx.save();
@@ -581,13 +592,61 @@ export class Renderer {
     ctx.fillRect(-4, -5, 8, 5);
     ctx.restore();
 
-    ctx.fillStyle = car.color;
+    ctx.fillStyle = bodyColor;
     ctx.fillRect(-14, -10, 26, 20);
-    ctx.fillStyle = car.colorDark;
+    ctx.fillStyle = bodyDark;
     ctx.fillRect(-14, -10, 26, 3);
     ctx.fillRect(-14, 7, 26, 3);
-    ctx.fillStyle = car.colorDark;
+    ctx.fillStyle = bodyDark;
     ctx.fillRect(-14, -10, 5, 20);
+
+    if (cust && cust.stripeEnabled && cust.stripePattern !== 'none') {
+      ctx.fillStyle = cust.stripeColor;
+      if (cust.stripePattern === 'single') {
+        ctx.fillRect(-14, -1, 26, 2);
+      } else if (cust.stripePattern === 'double') {
+        ctx.fillRect(-14, -5, 26, 2);
+        ctx.fillRect(-14, 3, 26, 2);
+      } else if (cust.stripePattern === 'checker') {
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 13; col++) {
+            if ((row + col) % 2 === 0) {
+              ctx.fillRect(-13 + col * 2, -6 + row * 2, 2, 2);
+            }
+          }
+        }
+      } else if (cust.stripePattern === 'flame') {
+        const sc = cust.stripeColor;
+        ctx.fillStyle = sc;
+        ctx.beginPath();
+        ctx.moveTo(-14, -1);
+        ctx.lineTo(-10, -2);
+        ctx.lineTo(-8, -8);
+        ctx.lineTo(-4, -2);
+        ctx.lineTo(0, -6);
+        ctx.lineTo(4, -1);
+        ctx.lineTo(8, -5);
+        ctx.lineTo(12, 0);
+        ctx.lineTo(12, 2);
+        ctx.lineTo(-14, 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = this.darkenColor(sc, 0.25);
+        ctx.beginPath();
+        ctx.moveTo(-14, 0);
+        ctx.lineTo(-10, -1);
+        ctx.lineTo(-8, -5);
+        ctx.lineTo(-4, -1);
+        ctx.lineTo(0, -3.5);
+        ctx.lineTo(4, 0);
+        ctx.lineTo(8, -2);
+        ctx.lineTo(12, 0.5);
+        ctx.lineTo(12, 1);
+        ctx.lineTo(-14, 1);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
 
     ctx.fillStyle = '#223344';
     ctx.fillRect(-2, -7, 10, 14);
@@ -602,8 +661,16 @@ export class Renderer {
     ctx.fillRect(-14, -6, 3, 3);
     ctx.fillRect(-14, 3, 3, 3);
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-6, -2, 2, 4);
+    if (cust && cust.numberEnabled && cust.number) {
+      ctx.fillStyle = cust.numberColor;
+      ctx.font = 'bold 8px "Press Start 2P", "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cust.number.slice(0, 2), -6, 0);
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-6, -2, 2, 4);
+    }
 
     ctx.restore();
 

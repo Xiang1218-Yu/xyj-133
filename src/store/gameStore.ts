@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint, CarUpgrades, PlayerProgress, UpgradeType } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
 import { calcUpgradeCost, MAX_UPGRADE_LEVEL, UPGRADE_BONUS, CAR_SKINS } from '../engine/skins';
+import { DEFAULT_TRACK } from '../engine/track';
 
 interface GameState {
   phase: GamePhase;
@@ -31,6 +32,7 @@ interface GameState {
   customTrack: CustomTrack;
   useCustomTrack: boolean;
   savedTracks: CustomTrack[];
+  selectedTrackId: string;
   coins: number;
   totalCoinsEarned: number;
   racesWon: number;
@@ -102,6 +104,7 @@ interface GameState {
   setObstaclesEnabled: (enabled: boolean) => void;
   toggleWackyMode: () => void;
   setWackyMode: (enabled: boolean) => void;
+  selectTrack: (trackId: string) => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -203,6 +206,7 @@ export const useGameStore = create<GameState>((set, get) => {
   customTrack: createDefaultCustomTrack(),
   useCustomTrack: false,
   savedTracks: [],
+  selectedTrackId: DEFAULT_TRACK.id,
   coins: savedProgress.coins ?? 0,
   totalCoinsEarned: savedProgress.totalCoinsEarned ?? 0,
   racesWon: savedProgress.racesWon ?? 0,
@@ -686,5 +690,7 @@ export const useGameStore = create<GameState>((set, get) => {
     saveProgress({ ...state, ...newState });
     return newState;
   }),
+
+  selectTrack: (trackId) => set({ selectedTrackId: trackId }),
   };
 });

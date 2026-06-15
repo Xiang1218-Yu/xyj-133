@@ -1,7 +1,8 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
-import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle, Zap } from 'lucide-react';
+import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern, Track } from '../engine/types';
+import { PRESET_TRACKS, DIFFICULTY_LABEL, DIFFICULTY_COLOR, DIFFICULTY_STARS, THEME_LABEL, getTrackById } from '../engine/track';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle, Zap, Star, MapPin, Layers } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -26,6 +27,8 @@ export default function MainMenu() {
   const useCustomTrack = useGameStore((s) => s.useCustomTrack);
   const toggleUseCustomTrack = useGameStore((s) => s.toggleUseCustomTrack);
   const customTrack = useGameStore((s) => s.customTrack);
+  const selectedTrackId = useGameStore((s) => s.selectedTrackId);
+  const selectTrack = useGameStore((s) => s.selectTrack);
   const coins = useGameStore((s) => s.coins);
   const racesPlayed = useGameStore((s) => s.racesPlayed);
   const racesWon = useGameStore((s) => s.racesWon);
@@ -650,53 +653,191 @@ export default function MainMenu() {
           </button>
         </div>
 
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-4xl">
           <div className="text-center mb-2 md:mb-3" style={{ color: '#ff88cc' }}>
-            <span className="text-[10px] md:text-xs tracking-widest">TRACK 赛道</span>
+            <span className="text-[10px] md:text-xs tracking-widest">TRACK 赛道选择</span>
           </div>
-          <div className="grid grid-cols-3 gap-2 md:gap-3">
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-3">
+            {PRESET_TRACKS.map((track) => {
+              const isSelected = !useCustomTrack && selectedTrackId === track.id;
+              const stars = DIFFICULTY_STARS[track.difficulty];
+              const diffColor = DIFFICULTY_COLOR[track.difficulty];
+              return (
+                <button
+                  key={track.id}
+                  onClick={() => { selectTrack(track.id); if (useCustomTrack) toggleUseCustomTrack(); }}
+                  className={`p-2 md:p-3 border-4 transition-all text-left ${isSelected ? '-translate-y-1' : 'hover:-translate-y-0.5'}`}
+                  style={{
+                    background: isSelected ? '#1a1a3a' : '#12122a',
+                    borderColor: isSelected ? track.accentColor : '#333366',
+                    boxShadow: isSelected
+                      ? `0 0 20px ${track.accentColor}55, 4px 4px 0 #000000`
+                      : '3px 3px 0 #000000',
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: track.accentColor }} />
+                      <span
+                        className="text-[10px] md:text-[11px] tracking-wider font-bold"
+                        style={{ color: isSelected ? track.accentColor : '#ccccdd' }}
+                      >
+                        {track.name}
+                      </span>
+                    </div>
+                    {isSelected && <Check className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: '#00ff88' }} />}
+                  </div>
+
+                  <div className="h-10 md:h-12 mb-1.5 rounded overflow-hidden relative" style={{ background: '#0a0a1a', border: `2px solid ${track.accentColor}44` }}>
+                    <svg viewBox="0 0 200 120" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+                      {(() => {
+                        const pts = track.points;
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        for (const p of pts) {
+                          if (p.x < minX) minX = p.x;
+                          if (p.y < minY) minY = p.y;
+                          if (p.x > maxX) maxX = p.x;
+                          if (p.y > maxY) maxY = p.y;
+                        }
+                        const scaleX = 180 / (maxX - minX || 1);
+                        const scaleY = 100 / (maxY - minY || 1);
+                        const scale = Math.min(scaleX, scaleY);
+                        const offX = 10 + (180 - (maxX - minX) * scale) / 2;
+                        const offY = 10 + (100 - (maxY - minY) * scale) / 2;
+                        const step = Math.max(1, Math.floor(pts.length / 60));
+                        const dPath = pts.map((p, i) => {
+                          const x = offX + (p.x - minX) * scale;
+                          const y = offY + (p.y - minY) * scale;
+                          return i % step === 0 ? `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}` : '';
+                        }).filter(Boolean).join(' ') + ' Z';
+                        return (
+                          <path
+                            d={dPath}
+                            fill="none"
+                            stroke={track.accentColor}
+                            strokeWidth="5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            opacity={isSelected ? 1 : 0.6}
+                          />
+                        );
+                      })()}
+                    </svg>
+                  </div>
+
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-2.5 h-2.5 md:w-3 md:h-3 ${i < stars ? 'fill-current' : ''}`}
+                          style={{ color: i < stars ? diffColor : '#333355' }}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      className="text-[7px] md:text-[8px] px-1.5 py-0.5 rounded"
+                      style={{ color: diffColor, background: `${diffColor}22`, border: `1px solid ${diffColor}55` }}
+                    >
+                      {DIFFICULTY_LABEL[track.difficulty]}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1 mb-1">
+                    <Layers className="w-2.5 h-2.5 md:w-3 md:h-3" style={{ color: '#666688' }} />
+                    <span className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                      {THEME_LABEL[track.theme]} · {track.laps}圈
+                    </span>
+                  </div>
+
+                  <div className="text-[7px] md:text-[8px] leading-tight" style={{ color: '#666688' }}>
+                    {track.description}
+                  </div>
+                </button>
+              );
+            })}
+
             <button
-              onClick={toggleUseCustomTrack}
-              className={`p-2 md:p-3 border-4 transition-all ${useCustomTrack ? '-translate-y-0.5' : ''}`}
+              onClick={() => { if (!useCustomTrack) toggleUseCustomTrack(); }}
+              className={`p-2 md:p-3 border-4 transition-all text-left ${useCustomTrack ? '-translate-y-1' : 'hover:-translate-y-0.5'}`}
               style={{
                 background: useCustomTrack ? '#1a1a3a' : '#12122a',
                 borderColor: useCustomTrack ? '#33ccff' : '#333366',
-                boxShadow: useCustomTrack ? '0 0 16px #33ccff44, 3px 3px 0 #000000' : '3px 3px 0 #000000',
+                boxShadow: useCustomTrack
+                  ? '0 0 20px #33ccff55, 4px 4px 0 #000000'
+                  : '3px 3px 0 #000000',
               }}
             >
-              <div className="flex flex-col items-center gap-1">
-                {useCustomTrack ? <Check className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#33ccff' }} /> : <Pencil className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#8888aa' }} />}
-                <div className="text-[8px] md:text-[9px] tracking-wider" style={{ color: useCustomTrack ? '#33ccff' : '#aaaaaa' }}>
-                  {useCustomTrack ? '自定义' : '默认赛道'}
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: '#33ccff' }} />
+                  <span
+                    className="text-[10px] md:text-[11px] tracking-wider font-bold"
+                    style={{ color: useCustomTrack ? '#33ccff' : '#ccccdd' }}
+                  >
+                    自定义赛道
+                  </span>
                 </div>
-                <div className="text-[7px] md:text-[8px]" style={{ color: '#666688' }}>
-                  {useCustomTrack ? customTrack.name : 'Pixel Circuit'}
-                </div>
+                {useCustomTrack && <Check className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: '#00ff88' }} />}
               </div>
-            </button>
 
-            <button
-              onClick={openEditor}
-              className="col-span-2 p-2 md:p-3 border-4 transition-all hover:-translate-y-0.5 active:translate-y-0.5"
-              style={{
-                background: '#1a1a3a',
-                borderColor: '#ff88cc',
-                boxShadow: '0 0 12px #ff88cc33, 3px 3px 0 #000000',
-              }}
-            >
-              <div className="flex items-center justify-center gap-2 md:gap-3">
-                <Pencil className="w-5 h-5 md:w-7 md:h-7" style={{ color: '#ff88cc' }} />
-                <div className="flex flex-col items-start">
-                  <div className="text-[10px] md:text-xs tracking-wider" style={{ color: '#ff88cc' }}>
-                    赛道编辑器
-                  </div>
-                  <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
-                    自由设计赛道 · 放置加速带 · 道具箱
-                  </div>
+              <div className="h-10 md:h-12 mb-1.5 rounded overflow-hidden flex items-center justify-center" style={{ background: '#0a0a1a', border: '2px solid #33ccff44' }}>
+                <Pencil className="w-6 h-6 md:w-8 md:h-8" style={{ color: '#33ccff', opacity: 0.5 }} />
+              </div>
+
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className="w-2.5 h-2.5 md:w-3 md:h-3"
+                      style={{ color: '#33ccff55' }}
+                    />
+                  ))}
                 </div>
+                <span
+                  className="text-[7px] md:text-[8px] px-1.5 py-0.5 rounded"
+                  style={{ color: '#33ccff', background: '#33ccff22', border: '1px solid #33ccff55' }}
+                >
+                  自由创作
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1 mb-1">
+                <Layers className="w-2.5 h-2.5 md:w-3 md:h-3" style={{ color: '#666688' }} />
+                <span className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                  {customTrack.name}
+                </span>
+              </div>
+
+              <div className="text-[7px] md:text-[8px] leading-tight" style={{ color: '#666688' }}>
+                由你自己设计的专属赛道
               </div>
             </button>
           </div>
+
+          <button
+            onClick={openEditor}
+            className="w-full p-2 md:p-3 border-4 transition-all hover:-translate-y-0.5 active:translate-y-0.5"
+            style={{
+              background: '#1a1a3a',
+              borderColor: '#ff88cc',
+              boxShadow: '0 0 12px #ff88cc33, 3px 3px 0 #000000',
+            }}
+          >
+            <div className="flex items-center justify-center gap-2 md:gap-3">
+              <Pencil className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#ff88cc' }} />
+              <div className="flex flex-col items-center">
+                <div className="text-[10px] md:text-xs tracking-wider" style={{ color: '#ff88cc' }}>
+                  赛道编辑器
+                </div>
+                <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                  自由设计赛道 · 放置加速带 · 道具箱
+                </div>
+              </div>
+            </div>
+          </button>
         </div>
 
         <button

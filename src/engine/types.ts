@@ -173,13 +173,22 @@ export interface TrackPoint {
   y: number;
 }
 
+export type TrackDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
+export type TrackTheme = 'forest' | 'desert' | 'city' | 'snow' | 'volcano' | 'beach';
+
 export interface Track {
+  id: string;
   name: string;
   points: TrackPoint[];
   width: number;
   checkpoints: number[];
   boostZones: number[];
   itemBoxes: number[];
+  difficulty: TrackDifficulty;
+  theme: TrackTheme;
+  description: string;
+  accentColor: string;
+  laps: number;
 }
 
 export interface TireMark {

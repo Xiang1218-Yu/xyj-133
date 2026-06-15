@@ -1,30 +1,4 @@
-import type { Track, TrackPoint, CustomTrack } from './types';
-
-const generateOvalTrack = (cx: number, cy: number, rx: number, ry: number, segments: number): TrackPoint[] => {
-  const pts: TrackPoint[] = [];
-  for (let i = 0; i < segments; i++) {
-    const t = (i / segments) * Math.PI * 2;
-    const wobble = Math.sin(t * 3) * 30;
-    pts.push({
-      x: cx + Math.cos(t) * (rx + wobble),
-      y: cy + Math.sin(t) * (ry + wobble * 0.6),
-    });
-  }
-  return pts;
-};
-
-const TRACK_WIDTH = 120;
-const CENTER_X = 1000;
-const CENTER_Y = 800;
-
-export const MAIN_TRACK: Track = {
-  name: 'Pixel Circuit',
-  width: TRACK_WIDTH,
-  points: generateOvalTrack(CENTER_X, CENTER_Y, 600, 400, 80),
-  checkpoints: [0, 20, 40, 60],
-  boostZones: [8, 9, 10, 11, 28, 29, 30, 31, 48, 49, 50, 51, 68, 69, 70, 71],
-  itemBoxes: [4, 14, 24, 34, 44, 54, 64, 74],
-};
+import type { Track, TrackPoint, CustomTrack, TrackDifficulty, TrackTheme } from './types';
 
 const catmullRom = (p0: TrackPoint, p1: TrackPoint, p2: TrackPoint, p3: TrackPoint, t: number): TrackPoint => {
   const t2 = t * t;
@@ -70,6 +44,259 @@ export const interpolateTrackPoints = (
     result.push({ ...controlPoints[n - 1] });
   }
   return result;
+};
+
+const buildTrackFromControlPoints = (
+  id: string,
+  name: string,
+  controlPoints: TrackPoint[],
+  width: number,
+  difficulty: TrackDifficulty,
+  theme: TrackTheme,
+  description: string,
+  accentColor: string,
+  laps: number,
+  boostControlIndices: number[] = [],
+  itemControlIndices: number[] = [],
+  checkpointControlIndices: number[] = [0],
+  segments: number = 10,
+): Track => {
+  const points = interpolateTrackPoints(controlPoints, segments, true);
+  const controlCount = controlPoints.length;
+  const totalInterpolated = controlCount * segments;
+
+  const mapIdx = (editorIdx: number): number =>
+    ((editorIdx * segments) % totalInterpolated + totalInterpolated) % totalInterpolated;
+
+  const checkpoints = checkpointControlIndices.map(mapIdx).sort((a, b) => a - b);
+  if (!checkpoints.includes(0)) checkpoints.unshift(0);
+
+  const expandRange = (indices: number[], range: number): number[] => {
+    const result: Set<number> = new Set();
+    indices.forEach((idx) => {
+      const mapped = mapIdx(idx);
+      for (let r = -range; r <= range; r++) {
+        const val = ((mapped + r) % totalInterpolated + totalInterpolated) % totalInterpolated;
+        result.add(val);
+      }
+    });
+    return Array.from(result).sort((a, b) => a - b);
+  };
+
+  const boostZones = expandRange(boostControlIndices, 2);
+  const itemBoxes = itemControlIndices.map(mapIdx);
+
+  return {
+    id, name, points, width, checkpoints, boostZones, itemBoxes,
+    difficulty, theme, description, accentColor, laps,
+  };
+};
+
+const TRACK_FOREST_OVAL = buildTrackFromControlPoints(
+  'forest-oval',
+  '森林椭圆',
+  [
+    { x: 1000, y: 400 },
+    { x: 1400, y: 450 },
+    { x: 1600, y: 700 },
+    { x: 1500, y: 1000 },
+    { x: 1100, y: 1100 },
+    { x: 700, y: 1050 },
+    { x: 500, y: 800 },
+    { x: 550, y: 550 },
+  ],
+  140,
+  'easy',
+  'forest',
+  '宽阔平缓的入门赛道，适合新手练习',
+  '#44aa44',
+  3,
+  [2, 6],
+  [0, 3, 5],
+  [0, 2, 4, 6],
+);
+
+const TRACK_BEACH_DRIFT = buildTrackFromControlPoints(
+  'beach-drift',
+  '海滩漂移',
+  [
+    { x: 1000, y: 500 },
+    { x: 1350, y: 420 },
+    { x: 1650, y: 600 },
+    { x: 1550, y: 900 },
+    { x: 1250, y: 1100 },
+    { x: 850, y: 1050 },
+    { x: 550, y: 850 },
+    { x: 500, y: 600 },
+    { x: 750, y: 450 },
+  ],
+  130,
+  'medium',
+  'beach',
+  '阳光海滩，中等难度的S弯组合',
+  '#ffcc66',
+  3,
+  [1, 4, 7],
+  [0, 2, 5, 7],
+  [0, 2, 4, 6],
+);
+
+const TRACK_DESERT_LOOP = buildTrackFromControlPoints(
+  'desert-loop',
+  '沙漠环路',
+  [
+    { x: 900, y: 350 },
+    { x: 1400, y: 380 },
+    { x: 1700, y: 600 },
+    { x: 1600, y: 900 },
+    { x: 1300, y: 1100 },
+    { x: 900, y: 1150 },
+    { x: 550, y: 1000 },
+    { x: 400, y: 700 },
+    { x: 550, y: 450 },
+  ],
+  120,
+  'medium',
+  'desert',
+  '黄沙漫天，考验过弯技巧的环形赛道',
+  '#cc8833',
+  3,
+  [2, 5, 7],
+  [1, 3, 6, 8],
+  [0, 2, 4, 6, 8],
+);
+
+const TRACK_CITY_STREETS = buildTrackFromControlPoints(
+  'city-streets',
+  '城市街道',
+  [
+    { x: 700, y: 300 },
+    { x: 1400, y: 320 },
+    { x: 1700, y: 550 },
+    { x: 1600, y: 800 },
+    { x: 1300, y: 950 },
+    { x: 1000, y: 1200 },
+    { x: 600, y: 1100 },
+    { x: 400, y: 850 },
+    { x: 500, y: 550 },
+    { x: 900, y: 600 },
+    { x: 1100, y: 500 },
+  ],
+  110,
+  'hard',
+  'city',
+  '狭窄街道，多段急弯，考验反应速度',
+  '#4488ff',
+  3,
+  [1, 4, 7, 10],
+  [0, 3, 5, 8, 10],
+  [0, 3, 5, 7, 10],
+);
+
+const TRACK_SNOW_MOUNTAIN = buildTrackFromControlPoints(
+  'snow-mountain',
+  '雪山之巅',
+  [
+    { x: 1000, y: 250 },
+    { x: 1500, y: 400 },
+    { x: 1750, y: 700 },
+    { x: 1500, y: 1000 },
+    { x: 1100, y: 1150 },
+    { x: 700, y: 1050 },
+    { x: 450, y: 750 },
+    { x: 600, y: 450 },
+    { x: 900, y: 500 },
+    { x: 1200, y: 600 },
+    { x: 1300, y: 850 },
+    { x: 900, y: 900 },
+  ],
+  110,
+  'hard',
+  'snow',
+  '银装素裹，连续S弯考验漂移技巧',
+  '#aaddff',
+  3,
+  [1, 4, 7, 10],
+  [0, 2, 5, 8, 11],
+  [0, 3, 5, 7, 9, 11],
+);
+
+const TRACK_VOLCANO_PEAK = buildTrackFromControlPoints(
+  'volcano-peak',
+  '火山之脊',
+  [
+    { x: 1000, y: 200 },
+    { x: 1550, y: 350 },
+    { x: 1800, y: 650 },
+    { x: 1600, y: 950 },
+    { x: 1200, y: 1100 },
+    { x: 750, y: 1050 },
+    { x: 450, y: 800 },
+    { x: 350, y: 500 },
+    { x: 650, y: 300 },
+    { x: 1000, y: 500 },
+    { x: 1350, y: 650 },
+    { x: 1450, y: 900 },
+    { x: 1050, y: 1000 },
+    { x: 700, y: 800 },
+    { x: 800, y: 500 },
+  ],
+  100,
+  'expert',
+  'volcano',
+  '熔岩赛道，极窄极弯，只有高手才能征服',
+  '#ff4422',
+  3,
+  [2, 5, 8, 11, 14],
+  [0, 3, 6, 9, 12],
+  [0, 3, 5, 7, 10, 12, 14],
+);
+
+export const PRESET_TRACKS: Track[] = [
+  TRACK_FOREST_OVAL,
+  TRACK_BEACH_DRIFT,
+  TRACK_DESERT_LOOP,
+  TRACK_CITY_STREETS,
+  TRACK_SNOW_MOUNTAIN,
+  TRACK_VOLCANO_PEAK,
+];
+
+export const DEFAULT_TRACK = TRACK_FOREST_OVAL;
+
+export const MAIN_TRACK = TRACK_FOREST_OVAL;
+
+export const getTrackById = (id: string): Track => {
+  return PRESET_TRACKS.find((t) => t.id === id) ?? DEFAULT_TRACK;
+};
+
+export const DIFFICULTY_LABEL: Record<TrackDifficulty, string> = {
+  easy: '简单',
+  medium: '中等',
+  hard: '困难',
+  expert: '专家',
+};
+
+export const DIFFICULTY_COLOR: Record<TrackDifficulty, string> = {
+  easy: '#44ff88',
+  medium: '#ffdd44',
+  hard: '#ff8844',
+  expert: '#ff4466',
+};
+
+export const DIFFICULTY_STARS: Record<TrackDifficulty, number> = {
+  easy: 1,
+  medium: 2,
+  hard: 3,
+  expert: 4,
+};
+
+export const THEME_LABEL: Record<TrackTheme, string> = {
+  forest: '森林',
+  desert: '沙漠',
+  city: '城市',
+  snow: '雪山',
+  volcano: '火山',
+  beach: '海滩',
 };
 
 const mapEditorIndexToInterpolated = (
@@ -119,12 +346,18 @@ export const buildTrackFromCustom = (custom: CustomTrack): Track => {
   };
 
   return {
-    name: custom.name || 'Custom Track',
+    id: 'custom',
+    name: custom.name || '自定义赛道',
     width: custom.width,
     points,
     checkpoints,
     boostZones: expandRange(custom.boostZones, 2),
     itemBoxes: custom.itemBoxes.map((i) => mapEditorIndexToInterpolated(i, SEGMENTS, controlCount, custom.closed)),
+    difficulty: 'medium',
+    theme: 'forest',
+    description: '由玩家自由创作的赛道',
+    accentColor: '#ff88cc',
+    laps: 3,
   };
 };
 

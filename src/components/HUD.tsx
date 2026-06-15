@@ -2,6 +2,7 @@ import type { Car } from '../engine/types';
 import { useGameStore } from '../store/gameStore';
 import { formatTime } from '../utils/math';
 import { ITEM_ICON, ITEM_COLOR } from '../engine/renderer';
+import { getTrackById, buildTrackFromCustom } from '../engine/track';
 
 interface PlayerHUDProps {
   playerCar: Car;
@@ -290,12 +291,19 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
 
 export default function HUD() {
   const cars = useGameStore((s) => s.cars);
-  const totalLaps = useGameStore((s) => s.totalLaps);
+  const storeTotalLaps = useGameStore((s) => s.totalLaps);
   const raceTime = useGameStore((s) => s.raceTime);
   const gameMode = useGameStore((s) => s.gameMode);
   const playerCount = useGameStore((s) => s.playerCount);
   const splitLayout = useGameStore((s) => s.splitLayout);
   const wackyMode = useGameStore((s) => s.wackyMode);
+  const selectedTrackId = useGameStore((s) => s.selectedTrackId);
+  const useCustomTrack = useGameStore((s) => s.useCustomTrack);
+  const customTrack = useGameStore((s) => s.customTrack);
+
+  const totalLaps = useCustomTrack
+    ? (buildTrackFromCustom(customTrack).laps || storeTotalLaps)
+    : (selectedTrackId ? getTrackById(selectedTrackId).laps : storeTotalLaps);
 
   const playerCars = cars.filter((c) => c.isPlayer);
   if (playerCars.length === 0) return null;

@@ -7,7 +7,7 @@ import type {
   MineInstance, LightningInstance,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
-import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCustom } from '../engine/track';
+import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCustom, getTrackById } from '../engine/track';
 import type { Track } from '../engine/types';
 import { CAR_TEMPLATES, getCarTemplate } from '../engine/cars';
 import {
@@ -46,9 +46,12 @@ export default function GameCanvas() {
   const setReplayFrameIndex = useGameStore((s) => s.setReplayFrameIndex);
   const useCustomTrack = useGameStore((s) => s.useCustomTrack);
   const customTrack = useGameStore((s) => s.customTrack);
+  const selectedTrackId = useGameStore((s) => s.selectedTrackId);
   const obstaclesEnabled = useGameStore((s) => s.obstaclesEnabled);
   const wackyMode = useGameStore((s) => s.wackyMode);
-  const activeTrack: Track = useCustomTrack ? buildTrackFromCustom(customTrack) : MAIN_TRACK;
+  const activeTrack: Track = useCustomTrack
+    ? buildTrackFromCustom(customTrack)
+    : (selectedTrackId ? getTrackById(selectedTrackId) : MAIN_TRACK);
 
   const stateRef = useRef<{
     cars: Car[];
@@ -319,7 +322,7 @@ export default function GameCanvas() {
         st.cars.map((c) => ({ ...c })),
         st.gameMode,
         st.playerCount,
-        TOTAL_LAPS,
+        activeTrack.laps,
         st.env,
       );
     };
@@ -633,7 +636,7 @@ export default function GameCanvas() {
               }
               car.lap += 1;
               car.currentLapStartTime = ts;
-              if (car.lap >= TOTAL_LAPS) {
+              if (car.lap >= activeTrack.laps) {
                 car.finished = true;
                 car.finishTime = ts - st.raceStartTime;
                 if (!st.rankings.includes(car.id)) {
@@ -922,7 +925,7 @@ export default function GameCanvas() {
         st.cars.map((c) => ({ ...c })),
         st.gameMode,
         st.playerCount,
-        TOTAL_LAPS,
+        activeTrack.laps,
         st.env,
       );
 

@@ -204,6 +204,8 @@ export interface TireMark {
   alpha: number;
 }
 
+export type ParticleShape = 'square' | 'circle' | 'spark' | 'smoke' | 'ring' | 'star';
+
 export interface Particle {
   x: number;
   y: number;
@@ -214,6 +216,13 @@ export interface Particle {
   maxLife: number;
   color: string;
   size: number;
+  shape?: ParticleShape;
+  rotation?: number;
+  rotationSpeed?: number;
+  gravity?: number;
+  shrink?: boolean;
+  glow?: boolean;
+  colorEnd?: string;
 }
 
 export interface ItemBoxInstance {

@@ -1109,16 +1109,114 @@ export class Renderer {
     }
   }
 
+  private interpolateColor(color1: string, color2: string, t: number): string {
+    const hex = (c: string) => parseInt(c.slice(1), 16);
+    const r1 = (hex(color1) >> 16) & 255;
+    const g1 = (hex(color1) >> 8) & 255;
+    const b1 = hex(color1) & 255;
+    const r2 = (hex(color2) >> 16) & 255;
+    const g2 = (hex(color2) >> 8) & 255;
+    const b2 = hex(color2) & 255;
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  }
+
   drawParticles(particles: Particle[], targetZ: number = 0) {
     const ctx = this.ctx;
     const zOff = targetZ * 24;
     for (const p of particles) {
-      const a = p.life / p.maxLife;
+      const a = Math.max(0, Math.min(1, p.life / p.maxLife));
+      let color = p.color;
+      if (p.colorEnd) {
+        color = this.interpolateColor(p.colorEnd, p.color, a);
+      }
       ctx.globalAlpha = a;
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2 - zOff, p.size, p.size);
+      const drawX = p.x;
+      const drawY = p.y - zOff;
+      const size = Math.max(1, p.size);
+
+      if (p.glow) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = size * 2;
+      }
+
+      ctx.fillStyle = color;
+      const shape = p.shape || 'square';
+
+      switch (shape) {
+        case 'circle': {
+          ctx.beginPath();
+          ctx.arc(drawX, drawY, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'spark': {
+          ctx.save();
+          ctx.translate(drawX, drawY);
+          ctx.rotate(p.rotation || 0);
+          ctx.beginPath();
+          ctx.moveTo(0, -size / 2);
+          ctx.lineTo(size / 4, 0);
+          ctx.lineTo(0, size / 2);
+          ctx.lineTo(-size / 4, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          break;
+        }
+        case 'smoke': {
+          const gradient = ctx.createRadialGradient(drawX, drawY, 0, drawX, drawY, size / 2);
+          gradient.addColorStop(0, color);
+          gradient.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(drawX, drawY, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'ring': {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = Math.max(1, size / 3);
+          ctx.beginPath();
+          ctx.arc(drawX, drawY, size, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'star': {
+          ctx.save();
+          ctx.translate(drawX, drawY);
+          ctx.rotate(p.rotation || 0);
+          const spikes = 5;
+          const outerRadius = size / 2;
+          const innerRadius = size / 4;
+          ctx.beginPath();
+          for (let i = 0; i < spikes * 2; i++) {
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const angle = (i * Math.PI) / spikes - Math.PI / 2;
+            const sx = Math.cos(angle) * radius;
+            const sy = Math.sin(angle) * radius;
+            if (i === 0) ctx.moveTo(sx, sy);
+            else ctx.lineTo(sx, sy);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          break;
+        }
+        default: {
+          ctx.fillRect(drawX - size / 2, drawY - size / 2, size, size);
+          break;
+        }
+      }
+
+      if (p.glow) {
+        ctx.shadowBlur = 0;
+      }
     }
     ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
   }
 
   drawVignette() {

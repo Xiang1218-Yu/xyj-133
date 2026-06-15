@@ -18,7 +18,8 @@ import { updateAI } from '../engine/ai';
 import {
   createItemBoxes, updateItemBoxes, tryCollectItemBox, activateItem,
   updateBananas, updateMissiles, updateParticles, updateMines, updateLightnings,
-  updateCarItemEffects,
+  updateCarItemEffects, spawnBoostFlame, spawnAccelTrail, spawnCollisionSparks,
+  spawnMissileExplosion, spawnNitroBurst, spawnFinishLineEffect, spawnDriftMarks,
 } from '../engine/items';
 import { createObstacles, updateObstacles, updateObstacleCollisions } from '../engine/obstacles';
 import { lerp, clamp } from '../utils/math';
@@ -345,6 +346,11 @@ export default function GameCanvas() {
       const used = activateItem(player, st.cars, st.bananas, st.missiles, st.particles, st.mines, st.lightnings);
       if (used === 'boost') {
         st.cameras[playerIdx].shake = 8;
+        spawnNitroBurst(player, st.particles, false);
+      }
+      if (used === 'hyperboost') {
+        st.cameras[playerIdx].shake = 12;
+        spawnNitroBurst(player, st.particles, true);
       }
     };
 
@@ -589,12 +595,22 @@ export default function GameCanvas() {
           const inp: InputState = getInputForCar(car);
 
           if (!car.isPlayer && inp.space && st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
-            activateItem(car, st.cars, st.bananas, st.missiles, st.particles);
+            const used = activateItem(car, st.cars, st.bananas, st.missiles, st.particles, st.mines, st.lightnings);
+            if (used === 'boost') spawnNitroBurst(car, st.particles, false);
+            if (used === 'hyperboost') spawnNitroBurst(car, st.particles, true);
           }
 
           if (car.itemCooldown > 0) car.itemCooldown -= dt;
 
           updateCarPhysics(car, inp, dt, activeTrack, st.env, st.wacky.enabled ? st.wacky : null);
+
+          if (car.boostTime > 0) {
+            spawnBoostFlame(car, st.particles, car.hyperBoostTime > 0 ? 1.8 : 1);
+          }
+          if (inp.up && car.speed > 0.5) {
+            spawnAccelTrail(car, st.particles);
+          }
+          spawnDriftMarks(car, st.particles);
 
           if (car.drifting && car.tireMarkTimer > 40) {
             car.tireMarkTimer = 0;
@@ -602,7 +618,8 @@ export default function GameCanvas() {
             for (const side of [-1, 1]) {
               const px = car.x + Math.cos(back) * 12 + Math.cos(back + Math.PI / 2) * side * 7;
               const py = car.y + Math.sin(back) * 12 + Math.sin(back + Math.PI / 2) * side * 7;
-              st.tireMarks.push({ x: px, y: py, z: car.z, angle: car.angle, alpha: 0.5 });
+              const markAlpha = car.boostTime > 0 ? 0.7 : 0.5;
+              st.tireMarks.push({ x: px, y: py, z: car.z, angle: car.angle, alpha: markAlpha });
             }
             if (Math.random() < 0.4) {
               st.particles.push({
@@ -691,7 +708,20 @@ export default function GameCanvas() {
         for (let i = 0; i < st.cars.length; i++) {
           for (let j = i + 1; j < st.cars.length; j++) {
             if (checkCarCollision(st.cars[i], st.cars[j])) {
-              resolveCarCollision(st.cars[i], st.cars[j]);
+              const c1 = st.cars[i];
+              const c2 = st.cars[j];
+              const hitX = (c1.x + c2.x) / 2;
+              const hitY = (c1.y + c2.y) / 2;
+              const hitZ = Math.max(c1.z, c2.z);
+              const relSpeed = Math.abs(c1.speed - c2.speed);
+              spawnCollisionSparks(hitX, hitY, hitZ, st.particles, 0.6 + relSpeed * 0.15);
+              resolveCarCollision(c1, c2);
+              if (c1.isPlayer && c1.playerIndex >= 0) {
+                st.cameras[c1.playerIndex].shake = Math.max(st.cameras[c1.playerIndex].shake, 4 + relSpeed * 0.5);
+              }
+              if (c2.isPlayer && c2.playerIndex >= 0) {
+                st.cameras[c2.playerIndex].shake = Math.max(st.cameras[c2.playerIndex].shake, 4 + relSpeed * 0.5);
+              }
             }
           }
         }
@@ -734,6 +764,10 @@ export default function GameCanvas() {
               }
               car.lap += 1;
               car.currentLapStartTime = ts;
+              spawnFinishLineEffect(car, st.particles);
+              if (car.isPlayer) {
+                st.cameras[car.playerIndex].shake = Math.max(st.cameras[car.playerIndex].shake, 8);
+              }
               if (car.lap >= activeTrack.laps) {
                 car.finished = true;
                 car.finishTime = ts - st.raceStartTime;
@@ -741,7 +775,7 @@ export default function GameCanvas() {
                   st.rankings.push(car.id);
                 }
                 if (car.isPlayer) {
-                  st.cameras[car.playerIndex].shake = 12;
+                  st.cameras[car.playerIndex].shake = 16;
                 }
                 const allFinished = st.rankings.length >= st.cars.length;
                 const anyPlayerFinished = st.cars.some((c) => c.isPlayer && c.finished);

@@ -438,6 +438,7 @@ export const updateMissiles = (
       if (car.isGhost) continue;
       const hitRadius = 22 * car.scale;
       if (dist(car.x, car.y, m.x, m.y) < hitRadius) {
+        spawnMissileExplosion(m.x, m.y, car.z, particles);
         if (car.hasShield) {
           car.hasShield = false;
           car.shieldTime = 0;
@@ -451,13 +452,6 @@ export const updateMissiles = (
         } else {
           car.spinTime = 1200;
           car.speed *= 0.3;
-          for (let i = 0; i < 16; i++) {
-            particles.push({
-              x: car.x, y: car.y,
-              vx: randRange(-4, 4), vy: randRange(-4, 4),
-              life: 600, maxLife: 600, color: '#ff4400', size: 4,
-            });
-          }
         }
         m.active = false;
         break;
@@ -476,8 +470,18 @@ export const updateParticles = (particles: Particle[], dt: number) => {
     }
     p.x += p.vx;
     p.y += p.vy;
+    if (p.gravity) {
+      p.vy += p.gravity;
+    }
     p.vx *= 0.96;
     p.vy *= 0.96;
+    if (p.rotationSpeed) {
+      p.rotation = (p.rotation || 0) + p.rotationSpeed;
+    }
+    if (p.shrink) {
+      const t = p.life / p.maxLife;
+      p.size = p.size * Math.max(0.1, t);
+    }
   }
 };
 
@@ -523,4 +527,287 @@ export const createItemBoxes = (track: Track): ItemBoxInstance[] => {
     collected: false,
     respawnTimer: 0,
   }));
+};
+
+export const spawnBoostFlame = (car: Car, particles: Particle[], intensity: number = 1) => {
+  const back = car.angle + Math.PI;
+  const count = Math.floor(3 * intensity);
+  for (let i = 0; i < count; i++) {
+    const spread = (Math.random() - 0.5) * 0.4;
+    const angle = back + spread;
+    const speed = 2 + Math.random() * 2 * intensity;
+    particles.push({
+      x: car.x + Math.cos(back) * 14 + (Math.random() - 0.5) * 6,
+      y: car.y + Math.sin(back) * 14 + (Math.random() - 0.5) * 6,
+      z: car.z,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 250 + Math.random() * 200,
+      maxLife: 450,
+      color: Math.random() < 0.5 ? '#ff8800' : '#ffcc00',
+      colorEnd: '#ff2200',
+      size: 3 + Math.random() * 3,
+      shape: 'smoke',
+      shrink: true,
+      glow: true,
+    });
+  }
+};
+
+export const spawnAccelTrail = (car: Car, particles: Particle[]) => {
+  if (car.speed < car.maxSpeed * 0.3) return;
+  const speedFactor = Math.abs(car.speed) / car.maxSpeed;
+  if (Math.random() > speedFactor * 0.8) return;
+  const back = car.angle + Math.PI;
+  for (const side of [-1, 1]) {
+    const px = car.x + Math.cos(back) * 12 + Math.cos(back + Math.PI / 2) * side * 6;
+    const py = car.y + Math.sin(back) * 12 + Math.sin(back + Math.PI / 2) * side * 6;
+    particles.push({
+      x: px,
+      y: py,
+      z: car.z,
+      vx: Math.cos(back) * 0.5 + (Math.random() - 0.5) * 0.3,
+      vy: Math.sin(back) * 0.5 + (Math.random() - 0.5) * 0.3,
+      life: 200 + Math.random() * 150,
+      maxLife: 350,
+      color: car.hyperBoostTime > 0 ? (Math.random() < 0.5 ? '#ff00ff' : '#00ffff') :
+             car.boostTime > 0 ? (Math.random() < 0.5 ? '#ff8800' : '#ffcc00') :
+             '#888888',
+      size: 2 + Math.random() * 2,
+      shape: 'smoke',
+      shrink: true,
+    });
+  }
+};
+
+export const spawnCollisionSparks = (x: number, y: number, z: number, particles: Particle[], intensity: number = 1) => {
+  const count = Math.floor(12 * intensity);
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 4 * intensity;
+    particles.push({
+      x, y, z,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 200 + Math.random() * 200,
+      maxLife: 400,
+      color: Math.random() < 0.5 ? '#ffff00' : '#ffaa00',
+      size: 2 + Math.random() * 2,
+      shape: 'spark',
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.3,
+      glow: true,
+    });
+  }
+  for (let i = 0; i < Math.floor(4 * intensity); i++) {
+    particles.push({
+      x: x + (Math.random() - 0.5) * 10,
+      y: y + (Math.random() - 0.5) * 10,
+      z,
+      vx: (Math.random() - 0.5) * 1,
+      vy: (Math.random() - 0.5) * 1,
+      life: 300 + Math.random() * 200,
+      maxLife: 500,
+      color: '#666666',
+      size: 3 + Math.random() * 3,
+      shape: 'smoke',
+      shrink: true,
+    });
+  }
+};
+
+export const spawnMissileExplosion = (x: number, y: number, z: number, particles: Particle[]) => {
+  for (let i = 0; i < 30; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 3 + Math.random() * 6;
+    particles.push({
+      x, y, z,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 400 + Math.random() * 300,
+      maxLife: 700,
+      color: ['#ff4400', '#ff8800', '#ffcc00', '#ffff00'][Math.floor(Math.random() * 4)],
+      size: 4 + Math.random() * 4,
+      shape: 'spark',
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.4,
+      glow: true,
+    });
+  }
+  for (let i = 0; i < 15; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x, y, z,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 500 + Math.random() * 400,
+      maxLife: 900,
+      color: '#444444',
+      size: 6 + Math.random() * 6,
+      shape: 'smoke',
+      shrink: true,
+      gravity: 0.05,
+    });
+  }
+  for (let r = 0; r < 3; r++) {
+    const ringRadius = 15 + r * 10;
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      particles.push({
+        x: x + Math.cos(angle) * ringRadius * 0.3,
+        y: y + Math.sin(angle) * ringRadius * 0.3,
+        z,
+        vx: Math.cos(angle) * 2,
+        vy: Math.sin(angle) * 2,
+        life: 200 + r * 100,
+        maxLife: 500,
+        color: r === 0 ? '#ffff00' : r === 1 ? '#ff8800' : '#ff4400',
+        size: 3,
+        shape: 'ring',
+        glow: true,
+      });
+    }
+  }
+};
+
+export const spawnNitroBurst = (car: Car, particles: Particle[], isHyper: boolean = false) => {
+  const colors = isHyper
+    ? ['#ff00ff', '#00ffff', '#ffffff', '#ffff00']
+    : ['#ffcc00', '#ff8800', '#ffffff', '#ff4400'];
+  for (let i = 0; i < (isHyper ? 24 : 16); i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 5;
+    particles.push({
+      x: car.x, y: car.y, z: car.z,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 300 + Math.random() * 200,
+      maxLife: 500,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 3 + Math.random() * 3,
+      shape: 'spark',
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.3,
+      glow: true,
+    });
+  }
+  for (let ring = 0; ring < (isHyper ? 3 : 2); ring++) {
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const dist = 10 + ring * 12;
+      particles.push({
+        x: car.x + Math.cos(angle) * dist * 0.5,
+        y: car.y + Math.sin(angle) * dist * 0.5,
+        z: car.z,
+        vx: Math.cos(angle) * 2.5,
+        vy: Math.sin(angle) * 2.5,
+        life: 150 + ring * 100,
+        maxLife: 350,
+        color: isHyper ? (ring % 2 === 0 ? '#ff00ff' : '#00ffff') : (ring % 2 === 0 ? '#ffcc00' : '#ff8800'),
+        size: 4 - ring,
+        shape: 'ring',
+        glow: true,
+      });
+    }
+  }
+  const back = car.angle + Math.PI;
+  for (let i = 0; i < (isHyper ? 12 : 8); i++) {
+    particles.push({
+      x: car.x + Math.cos(back) * 16,
+      y: car.y + Math.sin(back) * 16,
+      z: car.z,
+      vx: Math.cos(back) * (3 + Math.random() * 3) + (Math.random() - 0.5) * 1,
+      vy: Math.sin(back) * (3 + Math.random() * 3) + (Math.random() - 0.5) * 1,
+      life: 400 + Math.random() * 200,
+      maxLife: 600,
+      color: isHyper ? (Math.random() < 0.5 ? '#ff00ff' : '#00ffff') : (Math.random() < 0.5 ? '#ff8800' : '#ffcc00'),
+      size: 5 + Math.random() * 3,
+      shape: 'smoke',
+      shrink: true,
+      glow: true,
+    });
+  }
+};
+
+export const spawnFinishLineEffect = (car: Car, particles: Particle[]) => {
+  for (let i = 0; i < 40; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 5;
+    const colorIdx = Math.floor(Math.random() * 7);
+    const rainbowColors = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#00ffff', '#0088ff', '#ff00ff'];
+    particles.push({
+      x: car.x, y: car.y, z: car.z,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1,
+      life: 600 + Math.random() * 400,
+      maxLife: 1000,
+      color: rainbowColors[colorIdx],
+      size: 3 + Math.random() * 3,
+      shape: 'star',
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.2,
+      gravity: 0.08,
+      glow: true,
+    });
+  }
+  for (let ring = 0; ring < 4; ring++) {
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      const dist = 15 + ring * 15;
+      particles.push({
+        x: car.x + Math.cos(angle) * dist * 0.3,
+        y: car.y + Math.sin(angle) * dist * 0.3,
+        z: car.z,
+        vx: Math.cos(angle) * 3,
+        vy: Math.sin(angle) * 3,
+        life: 200 + ring * 120,
+        maxLife: 680,
+        color: ['#ffffff', '#ffff00', '#ff8800', '#ff00ff'][ring % 4],
+        size: 4,
+        shape: 'ring',
+        glow: true,
+      });
+    }
+  }
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x: car.x + (Math.random() - 0.5) * 20,
+      y: car.y - 20 - Math.random() * 30,
+      z: car.z,
+      vx: (Math.random() - 0.5) * 1,
+      vy: -1 - Math.random() * 2,
+      life: 800 + Math.random() * 400,
+      maxLife: 1200,
+      color: ['#ffff00', '#ff8800', '#ffffff'][Math.floor(Math.random() * 3)],
+      size: 4,
+      shape: 'star',
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.15,
+      gravity: 0.03,
+      glow: true,
+    });
+  }
+};
+
+export const spawnDriftMarks = (car: Car, particles: Particle[]) => {
+  if (!car.drifting) return;
+  if (Math.random() > 0.5) return;
+  const back = car.angle + Math.PI;
+  for (const side of [-1, 1]) {
+    const px = car.x + Math.cos(back) * 14 + Math.cos(back + Math.PI / 2) * side * 7;
+    const py = car.y + Math.sin(back) * 14 + Math.sin(back + Math.PI / 2) * side * 7;
+    particles.push({
+      x: px, y: py, z: car.z,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: (Math.random() - 0.5) * 0.2,
+      life: 400, maxLife: 400,
+      color: car.hyperBoostTime > 0 ? (Math.random() < 0.5 ? '#ff00ff' : '#00ffff') :
+             car.boostTime > 0 ? (Math.random() < 0.5 ? '#ff6600' : '#ffaa00') :
+             '#888888',
+      size: 3 + Math.random() * 2,
+      shape: 'smoke',
+      shrink: true,
+    });
+  }
 };

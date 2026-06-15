@@ -1,8 +1,212 @@
-import type { Car } from '../engine/types';
+import { useRef, useCallback, useEffect, useState, ReactNode } from 'react';
+import type { Car, HUDPanelId, HUDPanelConfig } from '../engine/types';
 import { useGameStore } from '../store/gameStore';
 import { formatTime } from '../utils/math';
 import { ITEM_ICON, ITEM_COLOR } from '../engine/renderer';
 import { getTrackById, buildTrackFromCustom } from '../engine/track';
+
+interface DragState {
+  isDragging: boolean;
+  isResizing: boolean;
+  startX: number;
+  startY: number;
+  startPanelX: number;
+  startPanelY: number;
+  startWidth: number;
+  startHeight: number;
+}
+
+interface DraggablePanelProps {
+  player: 1 | 2;
+  panelId: HUDPanelId;
+  config: HUDPanelConfig;
+  isEditing: boolean;
+  children: ReactNode;
+  borderColor?: string;
+  minWidth?: number;
+  minHeight?: number;
+}
+
+function DraggablePanel({
+  player,
+  panelId,
+  config,
+  isEditing,
+  children,
+  borderColor = '#333366',
+  minWidth = 100,
+  minHeight = 60,
+}: DraggablePanelProps) {
+  const updateHudPanel = useGameStore((s) => s.updateHudPanel);
+  const dragRef = useRef<DragState>({
+    isDragging: false,
+    isResizing: false,
+    startX: 0,
+    startY: 0,
+    startPanelX: 0,
+    startPanelY: 0,
+    startWidth: 0,
+    startHeight: 0,
+  });
+  const [, forceUpdate] = useState(0);
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!isEditing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const point = 'touches' in e ? e.touches[0] : e;
+      dragRef.current = {
+        isDragging: true,
+        isResizing: false,
+        startX: point.clientX,
+        startY: point.clientY,
+        startPanelX: config.x,
+        startPanelY: config.y,
+        startWidth: config.width,
+        startHeight: config.height,
+      };
+      forceUpdate((n) => n + 1);
+    },
+    [isEditing, config.x, config.y, config.width, config.height]
+  );
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!isEditing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const point = 'touches' in e ? e.touches[0] : e;
+      dragRef.current = {
+        isDragging: false,
+        isResizing: true,
+        startX: point.clientX,
+        startY: point.clientY,
+        startPanelX: config.x,
+        startPanelY: config.y,
+        startWidth: config.width,
+        startHeight: config.height,
+      };
+      forceUpdate((n) => n + 1);
+    },
+    [isEditing, config.x, config.y, config.width, config.height]
+  );
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      const state = dragRef.current;
+      if (!state.isDragging && !state.isResizing) return;
+
+      const point = 'touches' in e ? e.touches[0] : (e as MouseEvent);
+      const dx = point.clientX - state.startX;
+      const dy = point.clientY - state.startY;
+
+      if (state.isDragging) {
+        const maxX = window.innerWidth - config.width - 4;
+        const maxY = window.innerHeight - config.height - 4;
+        const newX = Math.max(2, Math.min(maxX, state.startPanelX + dx));
+        const newY = Math.max(2, Math.min(maxY, state.startPanelY + dy));
+        updateHudPanel(player, panelId, { x: newX, y: newY });
+      } else if (state.isResizing) {
+        const newWidth = Math.max(minWidth, state.startWidth + dx);
+        const newHeight = Math.max(minHeight, state.startHeight + dy);
+        updateHudPanel(player, panelId, { width: newWidth, height: newHeight });
+      }
+    };
+
+    const handleUp = () => {
+      if (dragRef.current.isDragging || dragRef.current.isResizing) {
+        dragRef.current.isDragging = false;
+        dragRef.current.isResizing = false;
+        forceUpdate((n) => n + 1);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleUp);
+    };
+  }, [player, panelId, config.width, config.height, minWidth, minHeight, updateHudPanel]);
+
+  if (!config.visible) return null;
+
+  const activeDrag = dragRef.current.isDragging || dragRef.current.isResizing;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: config.x,
+        top: config.y,
+        width: config.width,
+        height: config.height,
+        transform: `scale(${config.scale})`,
+        transformOrigin: 'top left',
+        cursor: isEditing ? (activeDrag ? 'grabbing' : 'grab') : 'default',
+        zIndex: isEditing ? 30 : 20,
+        transition: activeDrag ? 'none' : 'box-shadow 0.15s',
+      }}
+      className={isEditing ? 'select-none' : 'pointer-events-none'}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleMouseDown}
+    >
+      <div
+        className="w-full h-full p-2 md:p-3 border-4 overflow-hidden"
+        style={{
+          background: 'rgba(10,10,30,0.85)',
+          borderColor: isEditing ? (activeDrag ? '#ffdd00' : '#6666aa') : borderColor,
+          boxShadow: isEditing
+            ? activeDrag
+              ? '0 0 20px #ffdd0066, 3px 3px 0 rgba(0,0,0,0.6)'
+              : '0 0 10px #6666aa44, 3px 3px 0 rgba(0,0,0,0.6)'
+            : '3px 3px 0 rgba(0,0,0,0.6)',
+        }}
+      >
+        {children}
+      </div>
+      {isEditing && (
+        <>
+          <div
+            className="absolute -top-2 -left-2 w-4 h-4 border-2"
+            style={{ background: '#ffdd00', borderColor: '#aa8800' }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              right: -6,
+              bottom: -6,
+              width: 18,
+              height: 18,
+              background: '#ffdd00',
+              border: '3px solid #aa8800',
+              cursor: 'nwse-resize',
+              zIndex: 35,
+            }}
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+          />
+          <div
+            className="absolute -top-1 left-3 px-2 py-0.5 text-[8px] tracking-wider whitespace-nowrap"
+            style={{
+              background: '#ffdd00',
+              color: '#332200',
+              border: '2px solid #aa8800',
+            }}
+          >
+            {panelId}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface PlayerHUDProps {
   playerCar: Car;
@@ -16,11 +220,26 @@ interface PlayerHUDProps {
   wackyMode: boolean;
 }
 
-const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLayout, viewportIdx, playerCount, wackyMode }: PlayerHUDProps) => {
+const PlayerHUD = ({
+  playerCar,
+  allCars,
+  totalLaps,
+  raceTime,
+  gameMode,
+  viewportIdx,
+  playerCount,
+  wackyMode,
+}: PlayerHUDProps) => {
   const isTimeAttack = gameMode === 'timeattack';
   const isDrift = gameMode === 'drift';
   const isSplit = playerCount === 2;
   const playerColor = playerCar.playerIndex === 0 ? '#00ff88' : '#ff3366';
+  const player: 1 | 2 = playerCar.playerIndex === 0 ? 1 : 2;
+
+  const hudConfig = useGameStore((s) => s.hudConfig);
+  const isEditing = hudConfig.editMode;
+  const playerKey = player === 1 ? 'p1' : 'p2';
+  const panels = hudConfig[playerKey].panels;
 
   const sorted = [...allCars].sort((a, b) => {
     if (a.finished && b.finished) return a.finishTime - b.finishTime;
@@ -35,21 +254,29 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
   const speedPct = Math.min(100, (Math.abs(playerCar.speed) / playerCar.maxSpeed) * 100);
   const speedKmh = Math.round(Math.abs(playerCar.speed) * 32);
 
-  const containerStyle = isSplit ? {
-    position: 'absolute' as const,
-    top: splitLayout === 'horizontal' ? (viewportIdx === 0 ? '0' : '50%') : '0',
-    bottom: splitLayout === 'horizontal' ? (viewportIdx === 0 ? '50%' : '0') : '0',
-    left: splitLayout === 'vertical' ? (viewportIdx === 0 ? '0' : '50%') : '0',
-    right: splitLayout === 'vertical' ? (viewportIdx === 0 ? '50%' : '0') : '0',
-  } : { position: 'absolute' as const, inset: '0' };
-
   const itemKey = playerCar.playerIndex === 0 ? 'SPACE' : 'ENTER';
 
+  const containerStyle = isSplit
+    ? {
+        position: 'absolute' as const,
+        top: splitLayout === 'horizontal' ? (viewportIdx === 0 ? '0' : '50%') : '0',
+        bottom: splitLayout === 'horizontal' ? (viewportIdx === 0 ? '50%' : '0') : '0',
+        left: splitLayout === 'vertical' ? (viewportIdx === 0 ? '0' : '50%') : '0',
+        right: splitLayout === 'vertical' ? (viewportIdx === 0 ? '50%' : '0') : '0',
+        overflow: 'hidden' as const,
+      }
+    : { position: 'absolute' as const, inset: '0' as const, overflow: 'hidden' as const };
+
   return (
-    <div style={containerStyle} className="pointer-events-none z-20 text-[9px] md:text-[10px]">
-      <div
-        className={`absolute top-1 left-1 md:top-3 md:left-6 p-2 md:p-3 border-4`}
-        style={{ background: 'rgba(10,10,30,0.85)', borderColor: playerColor, boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
+    <div style={containerStyle} className="z-20 text-[9px] md:text-[10px]">
+      <DraggablePanel
+        player={player}
+        panelId="lapInfo"
+        config={panels.lapInfo}
+        isEditing={isEditing}
+        borderColor={playerColor}
+        minWidth={120}
+        minHeight={100}
       >
         <div style={{ color: playerColor, fontSize: '0.8em' }} className="mb-1 tracking-wider">
           P{playerCar.playerIndex + 1}
@@ -89,11 +316,16 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
             )}
           </>
         )}
-      </div>
+      </DraggablePanel>
 
-      <div
-        className={`absolute top-1 right-1 md:top-3 md:right-6 p-2 md:p-3 border-4 w-28 md:w-40`}
-        style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
+      <DraggablePanel
+        player={player}
+        panelId="speedInfo"
+        config={panels.speedInfo}
+        isEditing={isEditing}
+        borderColor="#333366"
+        minWidth={120}
+        minHeight={70}
       >
         <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider">{isDrift ? 'DRIFT' : 'SPEED'}</div>
         {isDrift ? (
@@ -146,13 +378,18 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
             </div>
           </>
         )}
-      </div>
+      </DraggablePanel>
 
       {!isTimeAttack && !isDrift && (
         <>
-          <div
-            className={`absolute bottom-1 left-1 md:bottom-3 md:left-6 p-2 md:p-3 border-4`}
-            style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
+          <DraggablePanel
+            player={player}
+            panelId="positionInfo"
+            config={panels.positionInfo}
+            isEditing={isEditing}
+            borderColor="#333366"
+            minWidth={100}
+            minHeight={60}
           >
             <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider">POSITION</div>
             <div
@@ -164,126 +401,164 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
             >
               {rank}<span style={{ fontSize: '0.4em', color: '#666' }}> / {allCars.length}</span>
             </div>
-          </div>
+          </DraggablePanel>
 
-          <div
-            className={`absolute bottom-1 right-1 md:bottom-3 md:right-6 p-2 md:p-3 border-4 flex items-center gap-2 md:gap-3`}
-            style={{ background: 'rgba(10,10,30,0.85)', borderColor: '#333366', boxShadow: '3px 3px 0 rgba(0,0,0,0.6)' }}
+          <DraggablePanel
+            player={player}
+            panelId="itemInfo"
+            config={panels.itemInfo}
+            isEditing={isEditing}
+            borderColor="#333366"
+            minWidth={140}
+            minHeight={60}
           >
-            <div style={{ color: '#8888aa' }} className="tracking-wider text-[8px] md:text-[10px]">ITEM</div>
-            <div
-              className="w-10 h-10 md:w-16 md:h-16 flex items-center justify-center text-2xl md:text-4xl border-4"
-              style={{
-                background: playerCar.currentItem ? `${ITEM_COLOR[playerCar.currentItem]}33` : '#1a1a3a',
-                borderColor: playerCar.currentItem ? ITEM_COLOR[playerCar.currentItem] : '#2a2a5a',
-                boxShadow: playerCar.currentItem ? `0 0 15px ${ITEM_COLOR[playerCar.currentItem]}66` : 'none',
-              }}
-            >
-              {playerCar.currentItem ? ITEM_ICON[playerCar.currentItem] : (
-                <span style={{ color: '#444466', fontSize: '0.5em' }}>—</span>
-              )}
+            <div className="flex items-center gap-2 md:gap-3 h-full">
+              <div style={{ color: '#8888aa' }} className="tracking-wider text-[8px] md:text-[10px] whitespace-nowrap">ITEM</div>
+              <div
+                className="w-10 h-10 md:w-16 md:h-16 flex items-center justify-center text-2xl md:text-4xl border-4 flex-shrink-0"
+                style={{
+                  background: playerCar.currentItem ? `${ITEM_COLOR[playerCar.currentItem]}33` : '#1a1a3a',
+                  borderColor: playerCar.currentItem ? ITEM_COLOR[playerCar.currentItem] : '#2a2a5a',
+                  boxShadow: playerCar.currentItem ? `0 0 15px ${ITEM_COLOR[playerCar.currentItem]}66` : 'none',
+                }}
+              >
+                {playerCar.currentItem ? ITEM_ICON[playerCar.currentItem] : (
+                  <span style={{ color: '#444466', fontSize: '0.5em' }}>—</span>
+                )}
+              </div>
+              <div className="text-[8px] md:text-[9px] whitespace-nowrap" style={{ color: '#8888aa' }}>
+                [{itemKey}]
+              </div>
             </div>
-            <div className="text-[8px] md:text-[9px]" style={{ color: '#8888aa' }}>
-              [{itemKey}]
-            </div>
-          </div>
+          </DraggablePanel>
         </>
       )}
 
-      {(playerCar.boostTime > 0 || playerCar.hasShield || playerCar.scale !== 1 || playerCar.isGhost || playerCar.hasMagnet || playerCar.hyperBoostTime > 0) && (
-        <div
-          className={`absolute top-1/2 left-1 md:left-6 -translate-y-1/2 flex flex-col gap-1 md:gap-2`}
+      {(playerCar.boostTime > 0 || playerCar.hasShield || playerCar.scale !== 1 || playerCar.isGhost || playerCar.hasMagnet || playerCar.hyperBoostTime > 0 || isEditing) && (
+        <DraggablePanel
+          player={player}
+          panelId="statusEffects"
+          config={panels.statusEffects}
+          isEditing={isEditing}
+          borderColor="#333366"
+          minWidth={120}
+          minHeight={100}
         >
-          {playerCar.hyperBoostTime > 0 && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(255,0,255,0.2)', borderColor: '#ff00ff', color: '#ff00ff', boxShadow: '0 0 15px #ff00ff66' }}
-            >
-              🌟 超级加速 {Math.ceil(playerCar.hyperBoostTime / 1000)}s
-            </div>
-          )}
-          {playerCar.boostTime > 0 && playerCar.hyperBoostTime <= 0 && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(255,200,0,0.2)', borderColor: '#ffdd00', color: '#ffdd00', boxShadow: '0 0 15px #ffdd0066' }}
-            >
-              ⚡ 加速 {Math.ceil(playerCar.boostTime / 1000)}s
-            </div>
-          )}
-          {playerCar.hasShield && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(80,200,255,0.2)', borderColor: '#33ccff', color: '#33ccff', boxShadow: '0 0 15px #33ccff66' }}
-            >
-              🛡 护盾 {Math.ceil(playerCar.shieldTime / 1000)}s
-            </div>
-          )}
-          {playerCar.scale < 1 && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(136,255,136,0.2)', borderColor: '#88ff88', color: '#88ff88', boxShadow: '0 0 15px #88ff8866' }}
-            >
-              🔽 缩小 {Math.ceil(playerCar.scaleTime / 1000)}s
-            </div>
-          )}
-          {playerCar.scale > 1 && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(255,136,68,0.2)', borderColor: '#ff8844', color: '#ff8844', boxShadow: '0 0 15px #ff884466' }}
-            >
-              🔼 巨型 {Math.ceil(playerCar.scaleTime / 1000)}s
-            </div>
-          )}
-          {playerCar.isGhost && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(170,136,255,0.2)', borderColor: '#aa88ff', color: '#aa88ff', boxShadow: '0 0 15px #aa88ff66' }}
-            >
-              👻 幽灵 {Math.ceil(playerCar.ghostTime / 1000)}s
-            </div>
-          )}
-          {playerCar.hasMagnet && (
-            <div
-              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
-              style={{ background: 'rgba(255,68,136,0.2)', borderColor: '#ff4488', color: '#ff4488', boxShadow: '0 0 15px #ff448866' }}
-            >
-              🧲 磁铁 {Math.ceil(playerCar.magnetTime / 1000)}s
-            </div>
-          )}
-        </div>
+          <div style={{ color: '#8888aa' }} className="mb-2 tracking-wider text-[8px] md:text-[9px]">STATUS</div>
+          <div className="flex flex-col gap-1 md:gap-2">
+            {playerCar.hyperBoostTime > 0 && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(255,0,255,0.2)', borderColor: '#ff00ff', color: '#ff00ff', boxShadow: '0 0 15px #ff00ff66' }}
+              >
+                🌟 超级加速 {Math.ceil(playerCar.hyperBoostTime / 1000)}s
+              </div>
+            )}
+            {playerCar.boostTime > 0 && playerCar.hyperBoostTime <= 0 && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(255,200,0,0.2)', borderColor: '#ffdd00', color: '#ffdd00', boxShadow: '0 0 15px #ffdd0066' }}
+              >
+                ⚡ 加速 {Math.ceil(playerCar.boostTime / 1000)}s
+              </div>
+            )}
+            {playerCar.hasShield && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(80,200,255,0.2)', borderColor: '#33ccff', color: '#33ccff', boxShadow: '0 0 15px #33ccff66' }}
+              >
+                🛡 护盾 {Math.ceil(playerCar.shieldTime / 1000)}s
+              </div>
+            )}
+            {playerCar.scale < 1 && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(136,255,136,0.2)', borderColor: '#88ff88', color: '#88ff88', boxShadow: '0 0 15px #88ff8866' }}
+              >
+                🔽 缩小 {Math.ceil(playerCar.scaleTime / 1000)}s
+              </div>
+            )}
+            {playerCar.scale > 1 && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(255,136,68,0.2)', borderColor: '#ff8844', color: '#ff8844', boxShadow: '0 0 15px #ff884466' }}
+              >
+                🔼 巨型 {Math.ceil(playerCar.scaleTime / 1000)}s
+              </div>
+            )}
+            {playerCar.isGhost && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(170,136,255,0.2)', borderColor: '#aa88ff', color: '#aa88ff', boxShadow: '0 0 15px #aa88ff66' }}
+              >
+                👻 幽灵 {Math.ceil(playerCar.ghostTime / 1000)}s
+              </div>
+            )}
+            {playerCar.hasMagnet && (
+              <div
+                className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+                style={{ background: 'rgba(255,68,136,0.2)', borderColor: '#ff4488', color: '#ff4488', boxShadow: '0 0 15px #ff448866' }}
+              >
+                🧲 磁铁 {Math.ceil(playerCar.magnetTime / 1000)}s
+              </div>
+            )}
+            {isEditing &&
+              playerCar.boostTime <= 0 &&
+              !playerCar.hasShield &&
+              playerCar.scale === 1 &&
+              !playerCar.isGhost &&
+              !playerCar.hasMagnet &&
+              playerCar.hyperBoostTime <= 0 && (
+                <div
+                  className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px] text-center"
+                  style={{ background: 'rgba(100,100,100,0.1)', borderColor: '#444466', color: '#555577' }}
+                >
+                  (无激活状态)
+                </div>
+              )}
+          </div>
+        </DraggablePanel>
       )}
 
-      {wackyMode && (
-        <div
-          className="absolute bottom-1 left-1/2 -translate-x-1/2 md:bottom-3"
+      {(wackyMode || isEditing) && (
+        <DraggablePanel
+          player={player}
+          panelId="wackyInfo"
+          config={panels.wackyInfo}
+          isEditing={isEditing}
+          borderColor={playerCar.gravityFlipped ? '#ff00ff' : '#00ff88'}
+          minWidth={140}
+          minHeight={40}
         >
-          <div
-            className="px-3 py-1 md:px-4 md:py-2 border-4 flex items-center gap-2"
-            style={{
-              background: playerCar.gravityFlipped ? 'rgba(255,0,255,0.2)' : 'rgba(0,255,136,0.15)',
-              borderColor: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88',
-              boxShadow: playerCar.gravityFlipped ? '0 0 15px #ff00ff66' : '0 0 10px #00ff8844',
-            }}
-          >
-            <span style={{ color: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88', fontSize: '1.2em' }}>
-              {playerCar.gravityFlipped ? '▲' : '▼'}
-            </span>
-            <span
-              className="text-[8px] md:text-[10px] tracking-wider"
-              style={{ color: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88' }}
-            >
-              {playerCar.gravityFlipped ? 'CEILING' : 'FLOOR'}
-            </span>
-            {playerCar.gravityFlipped && (
-              <span
-                className="text-[7px] md:text-[8px]"
-                style={{ color: '#ff8888' }}
-              >
-                操控反转!
+          {wackyMode ? (
+            <div className="w-full h-full px-3 py-1 md:px-4 md:py-2 flex items-center gap-2">
+              <span style={{ color: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88', fontSize: '1.2em' }}>
+                {playerCar.gravityFlipped ? '▲' : '▼'}
               </span>
-            )}
-          </div>
-        </div>
+              <span
+                className="text-[8px] md:text-[10px] tracking-wider"
+                style={{ color: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88' }}
+              >
+                {playerCar.gravityFlipped ? 'CEILING' : 'FLOOR'}
+              </span>
+              {playerCar.gravityFlipped && (
+                <span
+                  className="text-[7px] md:text-[8px]"
+                  style={{ color: '#ff8888' }}
+                >
+                  操控反转!
+                </span>
+              )}
+            </div>
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-[8px] md:text-[9px]"
+              style={{ color: '#555577' }}
+            >
+              (搞怪模式未启用)
+            </div>
+          )}
+        </DraggablePanel>
       )}
     </div>
   );

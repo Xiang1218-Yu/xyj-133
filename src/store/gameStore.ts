@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint, CarUpgrades, PlayerProgress, UpgradeType, AIDifficulty } from '../engine/types';
+import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint, CarUpgrades, PlayerProgress, UpgradeType, AIDifficulty, HUDConfig, HUDPanelId, HUDPanelConfig, HUDPlayerConfig } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
 import { calcUpgradeCost, MAX_UPGRADE_LEVEL, UPGRADE_BONUS, CAR_SKINS } from '../engine/skins';
 import { DEFAULT_TRACK } from '../engine/track';
+import { HUD_PANEL_DEFAULTS } from '../engine/types';
 
 export const AI_DIFFICULTY_SKILL: Record<AIDifficulty, number[]> = {
   easy: [0.25, 0.2, 0.3],
@@ -142,6 +143,12 @@ interface GameState {
   toggleWackyMode: () => void;
   setWackyMode: (enabled: boolean) => void;
   selectTrack: (trackId: string) => void;
+  hudConfig: HUDConfig;
+  setHudEditMode: (enabled: boolean) => void;
+  updateHudPanel: (player: 1 | 2, panelId: HUDPanelId, patch: Partial<HUDPanelConfig>) => void;
+  toggleHudPanelVisible: (player: 1 | 2, panelId: HUDPanelId) => void;
+  resetHudConfig: (player?: 1 | 2) => void;
+  setHudPanelScale: (player: 1 | 2, panelId: HUDPanelId, scale: number) => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -182,7 +189,66 @@ const createDefaultUpgrades = (): Record<number, CarUpgrades> => {
   return upgrades;
 };
 
-const loadProgress = (): Partial<PlayerProgress> => {
+const createDefaultHudPlayerConfig = (): HUDPlayerConfig => ({
+  panels: {
+    lapInfo: {
+      x: 12,
+      y: 12,
+      width: HUD_PANEL_DEFAULTS.lapInfo.width,
+      height: HUD_PANEL_DEFAULTS.lapInfo.height,
+      visible: true,
+      scale: 1,
+    },
+    speedInfo: {
+      x: window.innerWidth - HUD_PANEL_DEFAULTS.speedInfo.width - 12,
+      y: 12,
+      width: HUD_PANEL_DEFAULTS.speedInfo.width,
+      height: HUD_PANEL_DEFAULTS.speedInfo.height,
+      visible: true,
+      scale: 1,
+    },
+    positionInfo: {
+      x: 12,
+      y: window.innerHeight - HUD_PANEL_DEFAULTS.positionInfo.height - 12,
+      width: HUD_PANEL_DEFAULTS.positionInfo.width,
+      height: HUD_PANEL_DEFAULTS.positionInfo.height,
+      visible: true,
+      scale: 1,
+    },
+    itemInfo: {
+      x: window.innerWidth - HUD_PANEL_DEFAULTS.itemInfo.width - 12,
+      y: window.innerHeight - HUD_PANEL_DEFAULTS.itemInfo.height - 12,
+      width: HUD_PANEL_DEFAULTS.itemInfo.width,
+      height: HUD_PANEL_DEFAULTS.itemInfo.height,
+      visible: true,
+      scale: 1,
+    },
+    statusEffects: {
+      x: 12,
+      y: window.innerHeight / 2 - HUD_PANEL_DEFAULTS.statusEffects.height / 2,
+      width: HUD_PANEL_DEFAULTS.statusEffects.width,
+      height: HUD_PANEL_DEFAULTS.statusEffects.height,
+      visible: true,
+      scale: 1,
+    },
+    wackyInfo: {
+      x: window.innerWidth / 2 - HUD_PANEL_DEFAULTS.wackyInfo.width / 2,
+      y: window.innerHeight - HUD_PANEL_DEFAULTS.wackyInfo.height - 12,
+      width: HUD_PANEL_DEFAULTS.wackyInfo.width,
+      height: HUD_PANEL_DEFAULTS.wackyInfo.height,
+      visible: true,
+      scale: 1,
+    },
+  },
+});
+
+const createDefaultHudConfig = (): HUDConfig => ({
+  editMode: false,
+  p1: createDefaultHudPlayerConfig(),
+  p2: createDefaultHudPlayerConfig(),
+});
+
+const loadProgress = (): Partial<PlayerProgress> & { hudConfig?: HUDConfig } => {
   try {
     const saved = localStorage.getItem('pixel_kart_progress');
     if (saved) return JSON.parse(saved);
@@ -192,9 +258,22 @@ const loadProgress = (): Partial<PlayerProgress> => {
   return {};
 };
 
+const loadHudConfig = (): HUDConfig => {
+  try {
+    const saved = localStorage.getItem('pixel_kart_hud_config');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...createDefaultHudConfig(), ...parsed, editMode: false };
+    }
+  } catch {
+    // ignore
+  }
+  return createDefaultHudConfig();
+};
+
 const saveProgress = (state: GameState) => {
   try {
-    const progress: PlayerProgress = {
+    const progress: PlayerProgress & { hudConfig?: HUDConfig } = {
       coins: state.coins,
       totalCoinsEarned: state.totalCoinsEarned,
       racesWon: state.racesWon,
@@ -213,8 +292,18 @@ const saveProgress = (state: GameState) => {
   }
 };
 
+const saveHudConfig = (config: HUDConfig) => {
+  try {
+    const toSave = { ...config, editMode: false };
+    localStorage.setItem('pixel_kart_hud_config', JSON.stringify(toSave));
+  } catch {
+    // ignore
+  }
+};
+
 export const useGameStore = create<GameState>((set, get) => {
   const savedProgress = loadProgress();
+  const savedHudConfig = loadHudConfig();
 
   return {
   phase: 'menu',
@@ -257,6 +346,7 @@ export const useGameStore = create<GameState>((set, get) => {
   obstaclesEnabled: savedProgress.obstaclesEnabled ?? true,
   wackyMode: savedProgress.wackyMode ?? false,
   aiDifficulty: (savedProgress.aiDifficulty as AIDifficulty) ?? 'normal',
+  hudConfig: savedHudConfig,
 
   setPhase: (p) => set({ phase: p }),
   setAIDifficulty: (d) => {
@@ -737,5 +827,68 @@ export const useGameStore = create<GameState>((set, get) => {
   }),
 
   selectTrack: (trackId) => set({ selectedTrackId: trackId }),
+
+  setHudEditMode: (enabled) => set((state) => {
+    const newConfig = { ...state.hudConfig, editMode: enabled };
+    if (!enabled) {
+      saveHudConfig(newConfig);
+    }
+    return { hudConfig: newConfig };
+  }),
+
+  updateHudPanel: (player, panelId, patch) => set((state) => {
+    const playerKey = player === 1 ? 'p1' : 'p2';
+    const currentPanels = state.hudConfig[playerKey].panels;
+    const newPanels = {
+      ...currentPanels,
+      [panelId]: { ...currentPanels[panelId], ...patch },
+    };
+    const newConfig = {
+      ...state.hudConfig,
+      [playerKey]: { panels: newPanels },
+    };
+    return { hudConfig: newConfig };
+  }),
+
+  toggleHudPanelVisible: (player, panelId) => set((state) => {
+    const playerKey = player === 1 ? 'p1' : 'p2';
+    const currentPanels = state.hudConfig[playerKey].panels;
+    const newPanels = {
+      ...currentPanels,
+      [panelId]: { ...currentPanels[panelId], visible: !currentPanels[panelId].visible },
+    };
+    const newConfig = {
+      ...state.hudConfig,
+      [playerKey]: { panels: newPanels },
+    };
+    saveHudConfig(newConfig);
+    return { hudConfig: newConfig };
+  }),
+
+  resetHudConfig: (player) => set((state) => {
+    const newConfig = { ...state.hudConfig };
+    if (player === 1 || player === undefined) {
+      newConfig.p1 = createDefaultHudPlayerConfig();
+    }
+    if (player === 2 || player === undefined) {
+      newConfig.p2 = createDefaultHudPlayerConfig();
+    }
+    saveHudConfig(newConfig);
+    return { hudConfig: newConfig };
+  }),
+
+  setHudPanelScale: (player, panelId, scale) => set((state) => {
+    const playerKey = player === 1 ? 'p1' : 'p2';
+    const currentPanels = state.hudConfig[playerKey].panels;
+    const newPanels = {
+      ...currentPanels,
+      [panelId]: { ...currentPanels[panelId], scale: Math.max(0.5, Math.min(2, scale)) },
+    };
+    const newConfig = {
+      ...state.hudConfig,
+      [playerKey]: { panels: newPanels },
+    };
+    return { hudConfig: newConfig };
+  }),
   };
 });

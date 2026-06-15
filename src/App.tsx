@@ -2,6 +2,7 @@ import { useGameStore } from './store/gameStore'
 import MainMenu from './components/MainMenu'
 import GameCanvas from './components/GameCanvas'
 import HUD from './components/HUD'
+import HUDEditor from './components/HUDEditor'
 import ResultScreen from './components/ResultScreen'
 import ReplayControls from './components/ReplayControls'
 import CarCustomizer from './components/CarCustomizer'
@@ -21,6 +22,7 @@ export default function App() {
         <>
           <GameCanvas />
           <HUD />
+          <HUDEditor />
         </>
       )}
       {phase === 'finished' && (

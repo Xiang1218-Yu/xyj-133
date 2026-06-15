@@ -366,3 +366,42 @@ export interface ReplayData {
   rankings: number[];
   env: EnvConfig;
 }
+
+export type HUDPanelId = 'lapInfo' | 'speedInfo' | 'positionInfo' | 'itemInfo' | 'statusEffects' | 'wackyInfo';
+
+export interface HUDPanelConfig {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  scale: number;
+}
+
+export interface HUDPlayerConfig {
+  panels: Record<HUDPanelId, HUDPanelConfig>;
+}
+
+export interface HUDConfig {
+  editMode: boolean;
+  p1: HUDPlayerConfig;
+  p2: HUDPlayerConfig;
+}
+
+export const HUD_PANEL_LABELS: Record<HUDPanelId, string> = {
+  lapInfo: '圈数/时间',
+  speedInfo: '速度/漂移',
+  positionInfo: '排名',
+  itemInfo: '道具',
+  statusEffects: '状态效果',
+  wackyInfo: '搞怪模式',
+};
+
+export const HUD_PANEL_DEFAULTS: Record<HUDPanelId, { width: number; height: number }> = {
+  lapInfo: { width: 160, height: 150 },
+  speedInfo: { width: 180, height: 110 },
+  positionInfo: { width: 140, height: 90 },
+  itemInfo: { width: 200, height: 90 },
+  statusEffects: { width: 180, height: 200 },
+  wackyInfo: { width: 200, height: 60 },
+};

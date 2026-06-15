@@ -335,6 +335,7 @@ export class Renderer {
 
     const getZ = (i: number): number => pts[i % pts.length].z ?? 0;
     const matchZ = (z: number): boolean => targetZ === null || Math.round(z) === targetZ;
+    const zOffsetY = (z: number): number => z * 24;
 
     const fillSegments: number[][] = [];
     let currentSegment: number[] | null = null;
@@ -359,24 +360,32 @@ export class Renderer {
       for (const idx of seg) {
         const p = pts[idx];
         const next = pts[(idx + 1) % pts.length];
+        const z1 = p.z ?? 0;
+        const z2 = next.z ?? 0;
+        const avgZ = (z1 + z2) / 2;
+        const zOff = zOffsetY(avgZ);
         const dx = next.x - p.x;
         const dy = next.y - p.y;
         const len = Math.sqrt(dx * dx + dy * dy) || 1;
         const nx = -dy / len * hw;
         const ny = dx / len * hw;
-        if (idx === seg[0]) ctx.moveTo(p.x + nx, p.y + ny);
-        else ctx.lineTo(p.x + nx, p.y + ny);
+        if (idx === seg[0]) ctx.moveTo(p.x + nx, p.y + ny - zOff);
+        else ctx.lineTo(p.x + nx, p.y + ny - zOff);
       }
       for (let s = seg.length - 1; s >= 0; s--) {
         const idx = seg[s];
         const p = pts[idx];
         const next = pts[(idx + 1) % pts.length];
+        const z1 = p.z ?? 0;
+        const z2 = next.z ?? 0;
+        const avgZ = (z1 + z2) / 2;
+        const zOff = zOffsetY(avgZ);
         const dx = next.x - p.x;
         const dy = next.y - p.y;
         const len = Math.sqrt(dx * dx + dy * dy) || 1;
         const nx = -dy / len * hw;
         const ny = dx / len * hw;
-        ctx.lineTo(p.x - nx, p.y - ny);
+        ctx.lineTo(p.x - nx, p.y - ny - zOff);
       }
       ctx.closePath();
       ctx.fillStyle = ROAD_COLOR;
@@ -389,6 +398,10 @@ export class Renderer {
 
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
+      const z1 = p1.z ?? 0;
+      const z2 = p2.z ?? 0;
+      const avgZ = (z1 + z2) / 2;
+      const zOff = zOffsetY(avgZ);
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -400,10 +413,10 @@ export class Renderer {
       const segColor = i % 2 === 0 ? ROAD_COLOR : ROAD_DARK;
       ctx.fillStyle = segColor;
       ctx.beginPath();
-      ctx.moveTo(p1.x + nx * 0.92, p1.y + ny * 0.92);
-      ctx.lineTo(p2.x + nx * 0.92, p2.y + ny * 0.92);
-      ctx.lineTo(p2.x - nx * 0.92, p2.y - ny * 0.92);
-      ctx.lineTo(p1.x - nx * 0.92, p1.y - ny * 0.92);
+      ctx.moveTo(p1.x + nx * 0.92, p1.y + ny * 0.92 - zOff);
+      ctx.lineTo(p2.x + nx * 0.92, p2.y + ny * 0.92 - zOff);
+      ctx.lineTo(p2.x - nx * 0.92, p2.y - ny * 0.92 - zOff);
+      ctx.lineTo(p1.x - nx * 0.92, p1.y - ny * 0.92 - zOff);
       ctx.closePath();
       ctx.fill();
 
@@ -412,15 +425,15 @@ export class Renderer {
         ctx.fillStyle = BOOST_COLOR;
         ctx.globalAlpha = flicker;
         ctx.beginPath();
-        ctx.moveTo(p1.x + nx * 0.9, p1.y + ny * 0.9);
-        ctx.lineTo(p2.x + nx * 0.9, p2.y + ny * 0.9);
-        ctx.lineTo(p2.x - nx * 0.9, p2.y - ny * 0.9);
-        ctx.lineTo(p1.x - nx * 0.9, p1.y - ny * 0.9);
+        ctx.moveTo(p1.x + nx * 0.9, p1.y + ny * 0.9 - zOff);
+        ctx.lineTo(p2.x + nx * 0.9, p2.y + ny * 0.9 - zOff);
+        ctx.lineTo(p2.x - nx * 0.9, p2.y - ny * 0.9 - zOff);
+        ctx.lineTo(p1.x - nx * 0.9, p1.y - ny * 0.9 - zOff);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
         ctx.fillStyle = BOOST_GLOW;
-        ctx.fillRect((p1.x + p2.x) / 2 - 4, (p1.y + p2.y) / 2 - 4, 8, 8);
+        ctx.fillRect((p1.x + p2.x) / 2 - 4, (p1.y + p2.y) / 2 - 4 - zOff, 8, 8);
       }
 
       if (isCurb) {
@@ -428,12 +441,12 @@ export class Renderer {
         ctx.strokeStyle = curbColor;
         ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.moveTo(p1.x + nx, p1.y + ny);
-        ctx.lineTo(p2.x + nx, p2.y + ny);
+        ctx.moveTo(p1.x + nx, p1.y + ny - zOff);
+        ctx.lineTo(p2.x + nx, p2.y + ny - zOff);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(p1.x - nx, p1.y - ny);
-        ctx.lineTo(p2.x - nx, p2.y - ny);
+        ctx.moveTo(p1.x - nx, p1.y - ny - zOff);
+        ctx.lineTo(p2.x - nx, p2.y - ny - zOff);
         ctx.stroke();
       }
     }
@@ -448,8 +461,9 @@ export class Renderer {
       for (let s = 0; s < seg.length; s++) {
         const idx = seg[s];
         const p = pts[idx];
-        if (s === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
+        const zOff = zOffsetY(p.z ?? 0);
+        if (s === 0) ctx.moveTo(p.x, p.y - zOff);
+        else ctx.lineTo(p.x, p.y - zOff);
       }
       ctx.stroke();
       ctx.setLineDash([]);
@@ -483,6 +497,7 @@ export class Renderer {
     const ctx = this.ctx;
     const pts = track.points;
     const hw = track.width / 2;
+    const zOffsetY = (z: number): number => z * 24;
 
     for (let i = 0; i < pts.length; i++) {
       const z = pts[i].z ?? 0;
@@ -490,6 +505,10 @@ export class Renderer {
 
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
+      const z1 = p1.z ?? 0;
+      const z2 = p2.z ?? 0;
+      const avgZ = (z1 + z2) / 2;
+      const zOff = zOffsetY(avgZ);
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -501,10 +520,10 @@ export class Renderer {
 
       ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
       ctx.beginPath();
-      ctx.moveTo(p1.x + nx + shadowOffset, p1.y + ny + shadowOffset);
-      ctx.lineTo(p2.x + nx + shadowOffset, p2.y + ny + shadowOffset);
-      ctx.lineTo(p2.x - nx + shadowOffset, p2.y - ny + shadowOffset);
-      ctx.lineTo(p1.x - nx + shadowOffset, p1.y - ny + shadowOffset);
+      ctx.moveTo(p1.x + nx + shadowOffset, p1.y + ny + shadowOffset - zOff);
+      ctx.lineTo(p2.x + nx + shadowOffset, p2.y + ny + shadowOffset - zOff);
+      ctx.lineTo(p2.x - nx + shadowOffset, p2.y - ny + shadowOffset - zOff);
+      ctx.lineTo(p1.x - nx + shadowOffset, p1.y - ny + shadowOffset - zOff);
       ctx.closePath();
       ctx.fill();
     }
@@ -514,6 +533,7 @@ export class Renderer {
     const ctx = this.ctx;
     const pts = track.points;
     const hw = track.width / 2;
+    const zOffsetY = (z: number): number => z * 24;
 
     for (let i = 0; i < pts.length; i += 3) {
       const z = pts[i].z ?? 0;
@@ -528,6 +548,7 @@ export class Renderer {
       const ny = dx / len * hw;
 
       const height = z * 24;
+      const zOff = zOffsetY(z);
       const pillarX1 = p1.x + nx * 0.7;
       const pillarY1 = p1.y + ny * 0.7;
       const pillarX2 = p1.x - nx * 0.7;
@@ -537,17 +558,17 @@ export class Renderer {
       grad1.addColorStop(0, '#888899');
       grad1.addColorStop(1, '#555566');
       ctx.fillStyle = grad1;
-      ctx.fillRect(pillarX1 - 5, pillarY1 - 2, 10, height);
+      ctx.fillRect(pillarX1 - 5, pillarY1 - height - zOff, 10, height);
 
       const grad2 = ctx.createLinearGradient(pillarX2, pillarY2, pillarX2 + 8, pillarY2 + 8);
       grad2.addColorStop(0, '#888899');
       grad2.addColorStop(1, '#555566');
       ctx.fillStyle = grad2;
-      ctx.fillRect(pillarX2 - 5, pillarY2 - 2, 10, height);
+      ctx.fillRect(pillarX2 - 5, pillarY2 - height - zOff, 10, height);
 
       ctx.fillStyle = '#666677';
-      ctx.fillRect(pillarX1 - 7, pillarY1 - 5, 14, 6);
-      ctx.fillRect(pillarX2 - 7, pillarY2 - 5, 14, 6);
+      ctx.fillRect(pillarX1 - 7, pillarY1 - 5 - zOff, 14, 6);
+      ctx.fillRect(pillarX2 - 7, pillarY2 - 5 - zOff, 14, 6);
     }
 
     for (let i = 0; i < pts.length; i++) {
@@ -556,6 +577,10 @@ export class Renderer {
 
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
+      const z1 = p1.z ?? 0;
+      const z2 = p2.z ?? 0;
+      const avgZ = (z1 + z2) / 2;
+      const zOff = zOffsetY(avgZ);
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -567,20 +592,20 @@ export class Renderer {
       ctx.strokeStyle = railColor;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(p1.x + nx * 0.95, p1.y + ny * 0.95 - z * 4);
-      ctx.lineTo(p2.x + nx * 0.95, p2.y + ny * 0.95 - z * 4);
+      ctx.moveTo(p1.x + nx * 0.95, p1.y + ny * 0.95 - zOff - 4);
+      ctx.lineTo(p2.x + nx * 0.95, p2.y + ny * 0.95 - zOff - 4);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(p1.x - nx * 0.95, p1.y - ny * 0.95 - z * 4);
-      ctx.lineTo(p2.x - nx * 0.95, p2.y - ny * 0.95 - z * 4);
+      ctx.moveTo(p1.x - nx * 0.95, p1.y - ny * 0.95 - zOff - 4);
+      ctx.lineTo(p2.x - nx * 0.95, p2.y - ny * 0.95 - zOff - 4);
       ctx.stroke();
 
       ctx.fillStyle = railColor;
       for (let t = 0; t <= 1; t += 0.25) {
         const px = p1.x + dx * t;
         const py = p1.y + dy * t;
-        ctx.fillRect(px + nx * 0.95 - 1, py + ny * 0.95 - z * 4, 2, 6);
-        ctx.fillRect(px - nx * 0.95 - 1, py - ny * 0.95 - z * 4, 2, 6);
+        ctx.fillRect(px + nx * 0.95 - 1, py + ny * 0.95 - zOff - 4, 2, 6);
+        ctx.fillRect(px - nx * 0.95 - 1, py - ny * 0.95 - zOff - 4, 2, 6);
       }
     }
   }
@@ -595,9 +620,11 @@ export class Renderer {
 
   drawTireMarks(marks: TireMark[]) {
     const ctx = this.ctx;
+    const zOffsetY = (z: number): number => z * 24;
     for (const m of marks) {
+      const zOff = zOffsetY(m.z ?? 0);
       ctx.save();
-      ctx.translate(m.x, m.y);
+      ctx.translate(m.x, m.y - zOff);
       ctx.rotate(m.angle);
       ctx.fillStyle = `rgba(20,20,20,${m.alpha})`;
       ctx.fillRect(-6, -2, 12, 4);
@@ -605,13 +632,14 @@ export class Renderer {
     }
   }
 
-  drawItemBoxes(boxes: ItemBoxInstance[], time: number) {
+  drawItemBoxes(boxes: ItemBoxInstance[], time: number, targetZ: number = 0) {
     const ctx = this.ctx;
+    const zOff = targetZ * 24;
     for (const b of boxes) {
       if (b.collected) continue;
       const bob = Math.sin(time * 0.005 + b.idx) * 3;
       ctx.save();
-      ctx.translate(b.x, b.y + bob);
+      ctx.translate(b.x, b.y + bob - zOff);
       ctx.rotate(Math.sin(time * 0.003 + b.idx) * 0.15);
       const grad = ctx.createLinearGradient(-14, -14, 14, 14);
       grad.addColorStop(0, '#ff88ff');
@@ -631,12 +659,13 @@ export class Renderer {
     }
   }
 
-  drawBananas(bananas: BananaInstance[]) {
+  drawBananas(bananas: BananaInstance[], targetZ: number = 0) {
     const ctx = this.ctx;
+    const zOff = targetZ * 24;
     for (const b of bananas) {
       if (!b.active) continue;
       ctx.save();
-      ctx.translate(b.x, b.y);
+      ctx.translate(b.x, b.y - zOff);
       ctx.rotate(b.angle);
       ctx.fillStyle = '#ffdd22';
       ctx.beginPath();
@@ -650,12 +679,13 @@ export class Renderer {
     }
   }
 
-  drawMissiles(missiles: MissileInstance[]) {
+  drawMissiles(missiles: MissileInstance[], targetZ: number = 0) {
     const ctx = this.ctx;
+    const zOff = targetZ * 24;
     for (const m of missiles) {
       if (!m.active) continue;
       ctx.save();
-      ctx.translate(m.x, m.y);
+      ctx.translate(m.x, m.y - zOff);
       ctx.rotate(m.angle);
       ctx.fillStyle = '#cc2233';
       ctx.fillRect(-10, -5, 18, 10);
@@ -675,12 +705,13 @@ export class Renderer {
     }
   }
 
-  drawMines(mines: MineInstance[], time: number) {
+  drawMines(mines: MineInstance[], time: number, targetZ: number = 0) {
     const ctx = this.ctx;
+    const zOff = targetZ * 24;
     for (const m of mines) {
       if (!m.active) continue;
       ctx.save();
-      ctx.translate(m.x, m.y);
+      ctx.translate(m.x, m.y - zOff);
       ctx.rotate(m.angle);
 
       const blink = m.armed ? 1 : 0.5 + 0.5 * Math.sin(time * 0.01);
@@ -854,9 +885,13 @@ export class Renderer {
     const bodyDark = cust ? this.darkenColor(cust.bodyColor, 0.3) : car.colorDark;
     const wheelColor = cust ? cust.wheelColor : '#111111';
 
+    const zOffset = car.z * 24;
+    const drawX = car.x;
+    const drawY = car.y - zOffset;
+
     if (timeLight.headlightAlpha > 0.05 && !car.finished) {
       ctx.save();
-      ctx.translate(car.x, car.y);
+      ctx.translate(drawX, drawY);
       ctx.rotate(car.angle);
       if (car.gravityFlipped) ctx.scale(1, -1);
       const hlAlpha = timeLight.headlightAlpha * 0.6;
@@ -876,7 +911,7 @@ export class Renderer {
     }
 
     ctx.save();
-    ctx.translate(car.x, car.y);
+    ctx.translate(drawX, drawY);
 
     ctx.scale(car.scale, car.scale);
 
@@ -1074,13 +1109,14 @@ export class Renderer {
     }
   }
 
-  drawParticles(particles: Particle[]) {
+  drawParticles(particles: Particle[], targetZ: number = 0) {
     const ctx = this.ctx;
+    const zOff = targetZ * 24;
     for (const p of particles) {
       const a = p.life / p.maxLife;
       ctx.globalAlpha = a;
       ctx.fillStyle = p.color;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2 - zOff, p.size, p.size);
     }
     ctx.globalAlpha = 1;
   }

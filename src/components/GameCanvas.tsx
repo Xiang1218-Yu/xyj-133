@@ -413,10 +413,10 @@ export default function GameCanvas() {
         const missilesZ0 = filterItemsByZ(st.missiles, 0);
         const minesZ0 = filterItemsByZ(st.mines, 0);
 
-        renderer.drawItemBoxes(itemsZ0, ts);
-        renderer.drawBananas(bananasZ0);
-        renderer.drawMissiles(missilesZ0);
-        renderer.drawMines(minesZ0, ts);
+        renderer.drawItemBoxes(itemsZ0, ts, 0);
+        renderer.drawBananas(bananasZ0, 0);
+        renderer.drawMissiles(missilesZ0, 0);
+        renderer.drawMines(minesZ0, ts, 0);
         renderer.drawLightnings(st.lightnings, st.cars, ts);
       }
 
@@ -443,7 +443,7 @@ export default function GameCanvas() {
         if (!particlesByZ[z]) particlesByZ[z] = [];
         particlesByZ[z].push(p);
       }
-      if (particlesByZ[0]) renderer.drawParticles(particlesByZ[0]);
+      if (particlesByZ[0]) renderer.drawParticles(particlesByZ[0], 0);
 
       renderer.drawBridgeStructures(activeTrack);
 
@@ -471,10 +471,10 @@ export default function GameCanvas() {
           const missilesZ = filterItemsByZ(st.missiles, z);
           const minesZ = filterItemsByZ(st.mines, z);
 
-          renderer.drawItemBoxes(itemsZ, ts);
-          renderer.drawBananas(bananasZ);
-          renderer.drawMissiles(missilesZ);
-          renderer.drawMines(minesZ, ts);
+          renderer.drawItemBoxes(itemsZ, ts, z);
+          renderer.drawBananas(bananasZ, z);
+          renderer.drawMissiles(missilesZ, z);
+          renderer.drawMines(minesZ, ts, z);
         }
 
         const carsZ = carsByZ[z] ?? [];
@@ -483,7 +483,7 @@ export default function GameCanvas() {
           renderer.drawCar(car, ts);
         }
 
-        if (particlesByZ[z]) renderer.drawParticles(particlesByZ[z]);
+        if (particlesByZ[z]) renderer.drawParticles(particlesByZ[z], z);
       }
 
       renderer.drawWeatherParticles();

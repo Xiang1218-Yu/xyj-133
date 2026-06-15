@@ -3,7 +3,7 @@ import type {
   MineInstance, LightningInstance,
 } from './types';
 import { pickRandom, dist, angleDiff, randRange } from '../utils/math';
-import { nearestTrackDistSameZ } from './physics';
+import { nearestTrackDist, nearestTrackDistSameZ } from './physics';
 
 const ITEM_TYPES: ItemType[] = ['boost', 'shield', 'banana', 'missile', 'mine', 'shrink', 'giant', 'lightning', 'ghost', 'magnet', 'hyperboost'];
 
@@ -18,7 +18,9 @@ export const tryCollectItemBox = (
   const carZ = Math.round(car.z);
   for (const box of boxes) {
     if (box.collected) continue;
-    const boxNearest = nearestTrackDistSameZ(box.x, box.y, track, carZ);
+    const boxNearest = nearestTrackDist(box.x, box.y, track);
+    const boxZ = Math.round(track.points[boxNearest.nearestIdx].z ?? 0);
+    if (boxZ !== carZ) continue;
     if (boxNearest.dist >= track.width) continue;
     const collectRadius = car.hasMagnet ? 120 : 55;
     if (dist(car.x, car.y, box.x, box.y) < collectRadius) {
@@ -258,7 +260,7 @@ export const updateBananas = (
 ) => {
   for (const b of bananas) {
     if (!b.active) continue;
-    const bNearest = nearestTrackDistSameZ(b.x, b.y, track, 0);
+    const bNearest = nearestTrackDist(b.x, b.y, track);
     const bZ = Math.round(track.points[bNearest.nearestIdx].z ?? 0);
     for (const car of cars) {
       if (car.id === b.ownerId) continue;
@@ -313,7 +315,7 @@ export const updateMines = (
       continue;
     }
 
-    const mNearest = nearestTrackDistSameZ(m.x, m.y, track, 0);
+    const mNearest = nearestTrackDist(m.x, m.y, track);
     const mZ = Math.round(track.points[mNearest.nearestIdx].z ?? 0);
 
     for (const car of cars) {

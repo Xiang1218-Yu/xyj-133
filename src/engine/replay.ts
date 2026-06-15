@@ -269,6 +269,7 @@ export class ReplayPlayer {
   }
 
   getCameraForViewport(viewportIdx: number): Camera {
+    void viewportIdx;
     const cars = this.currentCars;
     const playerCars = cars.filter((c) => c.isPlayer);
 

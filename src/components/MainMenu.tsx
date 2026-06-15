@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
 import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -22,6 +22,10 @@ export default function MainMenu() {
   const openCustomizer = useGameStore((s) => s.openCustomizer);
   const customizationP1 = useGameStore((s) => s.customizationP1);
   const customizationP2 = useGameStore((s) => s.customizationP2);
+  const openEditor = useGameStore((s) => s.openEditor);
+  const useCustomTrack = useGameStore((s) => s.useCustomTrack);
+  const toggleUseCustomTrack = useGameStore((s) => s.toggleUseCustomTrack);
+  const customTrack = useGameStore((s) => s.customTrack);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -519,6 +523,55 @@ export default function MainMenu() {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-2 md:mb-3" style={{ color: '#ff88cc' }}>
+            <span className="text-[10px] md:text-xs tracking-widest">TRACK 赛道</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 md:gap-3">
+            <button
+              onClick={toggleUseCustomTrack}
+              className={`p-2 md:p-3 border-4 transition-all ${useCustomTrack ? '-translate-y-0.5' : ''}`}
+              style={{
+                background: useCustomTrack ? '#1a1a3a' : '#12122a',
+                borderColor: useCustomTrack ? '#33ccff' : '#333366',
+                boxShadow: useCustomTrack ? '0 0 16px #33ccff44, 3px 3px 0 #000000' : '3px 3px 0 #000000',
+              }}
+            >
+              <div className="flex flex-col items-center gap-1">
+                {useCustomTrack ? <Check className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#33ccff' }} /> : <Pencil className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#8888aa' }} />}
+                <div className="text-[8px] md:text-[9px] tracking-wider" style={{ color: useCustomTrack ? '#33ccff' : '#aaaaaa' }}>
+                  {useCustomTrack ? '自定义' : '默认赛道'}
+                </div>
+                <div className="text-[7px] md:text-[8px]" style={{ color: '#666688' }}>
+                  {useCustomTrack ? customTrack.name : 'Pixel Circuit'}
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={openEditor}
+              className="col-span-2 p-2 md:p-3 border-4 transition-all hover:-translate-y-0.5 active:translate-y-0.5"
+              style={{
+                background: '#1a1a3a',
+                borderColor: '#ff88cc',
+                boxShadow: '0 0 12px #ff88cc33, 3px 3px 0 #000000',
+              }}
+            >
+              <div className="flex items-center justify-center gap-2 md:gap-3">
+                <Pencil className="w-5 h-5 md:w-7 md:h-7" style={{ color: '#ff88cc' }} />
+                <div className="flex flex-col items-start">
+                  <div className="text-[10px] md:text-xs tracking-wider" style={{ color: '#ff88cc' }}>
+                    赛道编辑器
+                  </div>
+                  <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                    自由设计赛道 · 放置加速带 · 道具箱
+                  </div>
+                </div>
+              </div>
+            </button>
           </div>
         </div>
 

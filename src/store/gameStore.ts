@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, StripePattern } from '../engine/types';
+import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
 
 interface GameState {
@@ -25,6 +25,11 @@ interface GameState {
   customizationP1: CarCustomization;
   customizationP2: CarCustomization;
   customizeTarget: 1 | 2;
+  editorTool: EditorTool;
+  editorSelectedPoint: number | null;
+  customTrack: CustomTrack;
+  useCustomTrack: boolean;
+  savedTracks: CustomTrack[];
   setPhase: (p: GamePhase) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
@@ -52,6 +57,25 @@ interface GameState {
   updateCustomizationP2: (patch: Partial<CarCustomization>) => void;
   resetCustomization: (target: 1 | 2) => void;
   applyTemplateToCustomization: (target: 1 | 2, templateId: number) => void;
+  setEditorTool: (tool: EditorTool) => void;
+  setEditorSelectedPoint: (idx: number | null) => void;
+  openEditor: () => void;
+  closeEditor: () => void;
+  addTrackPoint: (point: TrackPoint, insertIndex?: number) => void;
+  updateTrackPoint: (index: number, point: Partial<TrackPoint>) => void;
+  deleteTrackPoint: (index: number) => void;
+  toggleCheckpoint: (index: number) => void;
+  toggleBoostZone: (index: number) => void;
+  toggleItemBox: (index: number) => void;
+  setTrackWidth: (width: number) => void;
+  setTrackClosed: (closed: boolean) => void;
+  setTrackName: (name: string) => void;
+  saveCurrentTrack: () => void;
+  loadTrack: (track: CustomTrack) => void;
+  deleteSavedTrack: (index: number) => void;
+  resetCustomTrack: () => void;
+  toggleUseCustomTrack: () => void;
+  smoothTrackPoints: () => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -65,6 +89,23 @@ const createDefaultCustomization = (template: typeof CAR_TEMPLATES[0]): CarCusto
   number: '01',
   numberEnabled: true,
   wheelColor: '#111111',
+});
+
+const createDefaultCustomTrack = (): CustomTrack => ({
+  name: 'My Track',
+  points: [
+    { x: 800, y: 600 },
+    { x: 1000, y: 500 },
+    { x: 1200, y: 600 },
+    { x: 1200, y: 800 },
+    { x: 1000, y: 900 },
+    { x: 800, y: 800 },
+  ],
+  width: 120,
+  checkpoints: [0],
+  boostZones: [],
+  itemBoxes: [2, 4],
+  closed: true,
 });
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -90,6 +131,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   customizationP1: createDefaultCustomization(CAR_TEMPLATES[0]),
   customizationP2: createDefaultCustomization(CAR_TEMPLATES[1]),
   customizeTarget: 1,
+  editorTool: 'select',
+  editorSelectedPoint: null,
+  customTrack: createDefaultCustomTrack(),
+  useCustomTrack: false,
+  savedTracks: [],
 
   setPhase: (p) => set({ phase: p }),
   selectCarP1: (id) => set({ selectedCarIdP1: id, customizationP1: createDefaultCustomization(CAR_TEMPLATES[id]) }),
@@ -278,4 +324,143 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     void currentTpl;
   },
+
+  setEditorTool: (tool) => set({ editorTool: tool, editorSelectedPoint: tool === 'select' ? get().editorSelectedPoint : null }),
+  setEditorSelectedPoint: (idx) => set({ editorSelectedPoint: idx }),
+
+  openEditor: () => set({
+    phase: 'editor',
+    editorTool: 'select',
+    editorSelectedPoint: null,
+  }),
+
+  closeEditor: () => set({
+    phase: 'menu',
+    editorTool: 'select',
+    editorSelectedPoint: null,
+  }),
+
+  addTrackPoint: (point, insertIndex) => set((state) => {
+    const newPoints = [...state.customTrack.points];
+    if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newPoints.length) {
+      newPoints.splice(insertIndex, 0, point);
+    } else {
+      newPoints.push(point);
+    }
+    return {
+      customTrack: { ...state.customTrack, points: newPoints },
+    };
+  }),
+
+  updateTrackPoint: (index, point) => set((state) => {
+    const newPoints = [...state.customTrack.points];
+    if (index >= 0 && index < newPoints.length) {
+      newPoints[index] = { ...newPoints[index], ...point };
+    }
+    return {
+      customTrack: { ...state.customTrack, points: newPoints },
+    };
+  }),
+
+  deleteTrackPoint: (index) => set((state) => {
+    const newPoints = state.customTrack.points.filter((_, i) => i !== index);
+    const adjustIdx = (arr: number[]) =>
+      arr.map((i) => (i > index ? i - 1 : i)).filter((i) => i !== index);
+    return {
+      customTrack: {
+        ...state.customTrack,
+        points: newPoints,
+        checkpoints: adjustIdx(state.customTrack.checkpoints),
+        boostZones: adjustIdx(state.customTrack.boostZones),
+        itemBoxes: adjustIdx(state.customTrack.itemBoxes),
+      },
+      editorSelectedPoint: state.editorSelectedPoint === index ? null : state.editorSelectedPoint,
+    };
+  }),
+
+  toggleCheckpoint: (index) => set((state) => {
+    const exists = state.customTrack.checkpoints.includes(index);
+    return {
+      customTrack: {
+        ...state.customTrack,
+        checkpoints: exists
+          ? state.customTrack.checkpoints.filter((i) => i !== index)
+          : [...state.customTrack.checkpoints, index].sort((a, b) => a - b),
+      },
+    };
+  }),
+
+  toggleBoostZone: (index) => set((state) => {
+    const exists = state.customTrack.boostZones.includes(index);
+    return {
+      customTrack: {
+        ...state.customTrack,
+        boostZones: exists
+          ? state.customTrack.boostZones.filter((i) => i !== index)
+          : [...state.customTrack.boostZones, index].sort((a, b) => a - b),
+      },
+    };
+  }),
+
+  toggleItemBox: (index) => set((state) => {
+    const exists = state.customTrack.itemBoxes.includes(index);
+    return {
+      customTrack: {
+        ...state.customTrack,
+        itemBoxes: exists
+          ? state.customTrack.itemBoxes.filter((i) => i !== index)
+          : [...state.customTrack.itemBoxes, index].sort((a, b) => a - b),
+      },
+    };
+  }),
+
+  setTrackWidth: (width) => set((state) => ({
+    customTrack: { ...state.customTrack, width: Math.max(60, Math.min(200, width)) },
+  })),
+
+  setTrackClosed: (closed) => set((state) => ({
+    customTrack: { ...state.customTrack, closed },
+  })),
+
+  setTrackName: (name) => set((state) => ({
+    customTrack: { ...state.customTrack, name },
+  })),
+
+  saveCurrentTrack: () => set((state) => ({
+    savedTracks: [...state.savedTracks, { ...state.customTrack, points: [...state.customTrack.points] }],
+  })),
+
+  loadTrack: (track) => set({
+    customTrack: { ...track, points: [...track.points] },
+    useCustomTrack: true,
+  }),
+
+  deleteSavedTrack: (index) => set((state) => ({
+    savedTracks: state.savedTracks.filter((_, i) => i !== index),
+  })),
+
+  resetCustomTrack: () => set({
+    customTrack: createDefaultCustomTrack(),
+    editorSelectedPoint: null,
+  }),
+
+  toggleUseCustomTrack: () => set((state) => ({
+    useCustomTrack: !state.useCustomTrack,
+  })),
+
+  smoothTrackPoints: () => set((state) => {
+    const pts = state.customTrack.points;
+    if (pts.length < 3) return {};
+    const smoothed = pts.map((p, i) => {
+      const prev = pts[(i - 1 + pts.length) % pts.length];
+      const next = pts[(i + 1) % pts.length];
+      return {
+        x: (prev.x + p.x * 2 + next.x) / 4,
+        y: (prev.y + p.y * 2 + next.y) / 4,
+      };
+    });
+    return {
+      customTrack: { ...state.customTrack, points: smoothed },
+    };
+  }),
 }));

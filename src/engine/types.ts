@@ -1,4 +1,35 @@
-export type GamePhase = 'menu' | 'customize' | 'countdown' | 'racing' | 'finished' | 'replay';
+export type GamePhase = 'menu' | 'customize' | 'countdown' | 'racing' | 'finished' | 'replay' | 'editor';
+
+export type EditorTool = 'select' | 'add' | 'delete' | 'checkpoint' | 'boost' | 'item' | 'move';
+
+export interface EditorState {
+  tool: EditorTool;
+  selectedPointIndex: number | null;
+  hoveredPointIndex: number | null;
+  isDragging: boolean;
+  dragOffsetX: number;
+  dragOffsetY: number;
+  zoom: number;
+  panX: number;
+  panY: number;
+  isPanning: boolean;
+  panStartX: number;
+  panStartY: number;
+}
+
+export interface CustomTrack {
+  name: string;
+  points: TrackPoint[];
+  width: number;
+  checkpoints: number[];
+  boostZones: number[];
+  itemBoxes: number[];
+  closed: boolean;
+}
+
+export const DEFAULT_TRACK_WIDTH = 120;
+export const EDITOR_CANVAS_WIDTH = 2000;
+export const EDITOR_CANVAS_HEIGHT = 1600;
 
 export type ItemType = 'boost' | 'shield' | 'banana' | 'missile';
 

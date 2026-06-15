@@ -3,7 +3,7 @@ import type {
   BananaInstance, MissileInstance, Camera, ItemType,
   WeatherType, TimeOfDay, EnvConfig,
 } from './types';
-import { lerp, clamp } from '../utils/math';
+import { lerp } from '../utils/math';
 
 const GRASS_COLOR = '#1a4a2a';
 const GRASS_DARK = '#144022';

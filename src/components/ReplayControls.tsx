@@ -37,6 +37,7 @@ export default function ReplayControls() {
   const setReplayFrameIndex = useGameStore((s) => s.setReplayFrameIndex);
   const exitReplay = useGameStore((s) => s.exitReplay);
   const totalLaps = useGameStore((s) => s.totalLaps);
+  void totalLaps;
 
   const sliderRef = useRef<HTMLInputElement>(null);
 

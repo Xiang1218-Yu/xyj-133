@@ -6,7 +6,8 @@ import type {
   GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
-import { MAIN_TRACK, getStartPositions, getItemBoxPositions } from '../engine/track';
+import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCustom } from '../engine/track';
+import type { Track } from '../engine/types';
 import { CAR_TEMPLATES, getCarTemplate } from '../engine/cars';
 import {
   updateCarPhysics, nearestTrackIdx, checkCarCollision, resolveCarCollision, isInBoostZone,
@@ -39,6 +40,9 @@ export default function GameCanvas() {
   const replayData = useGameStore((s) => s.replayData);
   const startReplay = useGameStore((s) => s.startReplay);
   const setReplayFrameIndex = useGameStore((s) => s.setReplayFrameIndex);
+  const useCustomTrack = useGameStore((s) => s.useCustomTrack);
+  const customTrack = useGameStore((s) => s.customTrack);
+  const activeTrack: Track = useCustomTrack ? buildTrackFromCustom(customTrack) : MAIN_TRACK;
 
   const stateRef = useRef<{
     cars: Car[];
@@ -173,7 +177,7 @@ export default function GameCanvas() {
         playerIndices = carIds.map((_, i) => (i === 0 ? 0 : -1) as (0 | 1 | -1));
       }
 
-      const starts = getStartPositions(MAIN_TRACK, carIds.length);
+      const starts = getStartPositions(activeTrack, carIds.length);
       const aiSkills = [0, 0.82, 0.68, 0.76];
 
       const getCustomizationForCar = (tplId: number, isPlayer: boolean, playerIdx: 0 | 1 | -1) => {
@@ -249,8 +253,8 @@ export default function GameCanvas() {
       st.cameras.forEach((c) => { c.shake = 0; });
 
       if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
-        st.itemBoxes = createItemBoxes(MAIN_TRACK);
-        getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
+        st.itemBoxes = createItemBoxes(activeTrack);
+        getItemBoxPositions(activeTrack).forEach((p, i) => {
           if (st.itemBoxes[i]) {
             st.itemBoxes[i].x = p.x;
             st.itemBoxes[i].y = p.y;
@@ -294,7 +298,7 @@ export default function GameCanvas() {
 
     const getInputForCar = (car: Car): InputState => {
       if (!car.isPlayer) {
-        return updateAI(car, MAIN_TRACK, 16);
+        return updateAI(car, activeTrack, 16);
       }
       if (car.playerIndex === 0) {
         return st.input!.stateP1;
@@ -321,9 +325,9 @@ export default function GameCanvas() {
 
       renderer.updateWeather(16, camera);
       renderer.beginCamera(camera);
-      renderer.drawGrassTexture(MAIN_TRACK);
-      renderer.drawTrack(MAIN_TRACK, ts);
-      renderer.drawRoadWet(MAIN_TRACK);
+      renderer.drawGrassTexture(activeTrack);
+      renderer.drawTrack(activeTrack, ts);
+      renderer.drawRoadWet(activeTrack);
       renderer.drawTireMarks(st.tireMarks);
       if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
         renderer.drawItemBoxes(st.itemBoxes, ts);
@@ -437,7 +441,7 @@ export default function GameCanvas() {
 
           if (car.itemCooldown > 0) car.itemCooldown -= dt;
 
-          updateCarPhysics(car, inp, dt, MAIN_TRACK, st.env);
+          updateCarPhysics(car, inp, dt, activeTrack, st.env);
 
           if (car.drifting && car.tireMarkTimer > 40) {
             car.tireMarkTimer = 0;
@@ -489,7 +493,7 @@ export default function GameCanvas() {
             }
           }
 
-          if (isInBoostZone(car.x, car.y, MAIN_TRACK)) {
+          if (isInBoostZone(car.x, car.y, activeTrack)) {
             if (Math.random() < 0.3) {
               st.particles.push({
                 x: car.x + (Math.random() - 0.5) * 16,
@@ -535,10 +539,10 @@ export default function GameCanvas() {
           }
         }
 
-        const checkpoints = MAIN_TRACK.checkpoints;
+        const checkpoints = activeTrack.checkpoints;
         for (const car of st.cars) {
           if (car.finished) continue;
-          const idx = nearestTrackIdx(car.x, car.y, MAIN_TRACK);
+          const idx = nearestTrackIdx(car.x, car.y, activeTrack);
           const nextSeqIdx = (car.checkpoint + 1) % checkpoints.length;
           const nextTrackIdx = checkpoints[nextSeqIdx];
           const nearCheckpoint = idx === nextTrackIdx || Math.abs(idx - nextTrackIdx) <= 2;
@@ -722,7 +726,7 @@ export default function GameCanvas() {
         playerIndices = carIds.map((_, i) => (i === 0 ? 0 : -1) as (0 | 1 | -1));
       }
 
-      const starts = getStartPositions(MAIN_TRACK, carIds.length);
+      const starts = getStartPositions(activeTrack, carIds.length);
       const aiSkills = [0, 0.82, 0.68, 0.76];
 
       const getCustomizationForCar2 = (tplId: number, isPlayer: boolean, playerIdx: 0 | 1 | -1) => {
@@ -798,8 +802,8 @@ export default function GameCanvas() {
       st.cameras.forEach((c) => { c.shake = 0; });
 
       if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
-        st.itemBoxes = createItemBoxes(MAIN_TRACK);
-        getItemBoxPositions(MAIN_TRACK).forEach((p, i) => {
+        st.itemBoxes = createItemBoxes(activeTrack);
+        getItemBoxPositions(activeTrack).forEach((p, i) => {
           if (st.itemBoxes[i]) {
             st.itemBoxes[i].x = p.x;
             st.itemBoxes[i].y = p.y;

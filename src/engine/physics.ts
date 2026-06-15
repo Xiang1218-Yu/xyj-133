@@ -84,8 +84,8 @@ export const updateCarPhysics = (
   } else {
     let maxSpeed = car.maxSpeed * mod.maxSpeedMul;
     let accel = car.acceleration * mod.accelMul;
-    let effectiveFriction = car.friction * mod.frictionMul;
-    let handling = car.handling * mod.gripMul;
+    const effectiveFriction = car.friction * mod.frictionMul;
+    const handling = car.handling * mod.gripMul;
 
     if (car.boostTime > 0) {
       car.boostTime -= dt;

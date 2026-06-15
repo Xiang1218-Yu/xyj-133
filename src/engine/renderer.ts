@@ -328,36 +328,65 @@ export class Renderer {
     ctx.fillRect(x - 4, y - 12, 3, 4);
   }
 
-  drawTrack(track: Track, time: number) {
+  drawTrack(track: Track, time: number, targetZ: number | null = null) {
     const ctx = this.ctx;
     const pts = track.points;
     const hw = track.width / 2;
 
-    ctx.beginPath();
+    const getZ = (i: number): number => pts[i % pts.length].z ?? 0;
+    const matchZ = (z: number): boolean => targetZ === null || Math.round(z) === targetZ;
+
+    const fillSegments: number[][] = [];
+    let currentSegment: number[] | null = null;
+
     for (let i = 0; i <= pts.length; i++) {
-      const p = pts[i % pts.length];
-      const dx = pts[(i + 1) % pts.length].x - pts[i % pts.length].x;
-      const dy = pts[(i + 1) % pts.length].y - pts[i % pts.length].y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len * hw;
-      const ny = dx / len * hw;
-      if (i === 0) ctx.moveTo(p.x + nx, p.y + ny);
-      else ctx.lineTo(p.x + nx, p.y + ny);
+      const z = getZ(i);
+      if (matchZ(z)) {
+        if (!currentSegment) currentSegment = [];
+        currentSegment.push(i % pts.length);
+      } else if (currentSegment) {
+        fillSegments.push(currentSegment);
+        currentSegment = null;
+      }
     }
-    for (let i = pts.length; i >= 0; i--) {
-      const p = pts[i % pts.length];
-      const dx = pts[(i + 1) % pts.length].x - pts[i % pts.length].x;
-      const dy = pts[(i + 1) % pts.length].y - pts[i % pts.length].y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len * hw;
-      const ny = dx / len * hw;
-      ctx.lineTo(p.x - nx, p.y - ny);
+    if (currentSegment && currentSegment.length > 0) {
+      fillSegments.push(currentSegment);
     }
-    ctx.closePath();
-    ctx.fillStyle = ROAD_COLOR;
-    ctx.fill();
+
+    for (const seg of fillSegments) {
+      if (seg.length < 2) continue;
+      ctx.beginPath();
+      for (const idx of seg) {
+        const p = pts[idx];
+        const next = pts[(idx + 1) % pts.length];
+        const dx = next.x - p.x;
+        const dy = next.y - p.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len * hw;
+        const ny = dx / len * hw;
+        if (idx === seg[0]) ctx.moveTo(p.x + nx, p.y + ny);
+        else ctx.lineTo(p.x + nx, p.y + ny);
+      }
+      for (let s = seg.length - 1; s >= 0; s--) {
+        const idx = seg[s];
+        const p = pts[idx];
+        const next = pts[(idx + 1) % pts.length];
+        const dx = next.x - p.x;
+        const dy = next.y - p.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len * hw;
+        const ny = dx / len * hw;
+        ctx.lineTo(p.x - nx, p.y - ny);
+      }
+      ctx.closePath();
+      ctx.fillStyle = ROAD_COLOR;
+      ctx.fill();
+    }
 
     for (let i = 0; i < pts.length; i++) {
+      const z = getZ(i);
+      if (!matchZ(z)) continue;
+
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
       const dx = p2.x - p1.x;
@@ -409,39 +438,159 @@ export class Renderer {
       }
     }
 
-    ctx.strokeStyle = ROAD_LIGHT;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([16, 16]);
-    ctx.lineDashOffset = -time * 0.01;
-    ctx.beginPath();
-    for (let i = 0; i <= pts.length; i++) {
-      const p = pts[i % pts.length];
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const start = pts[0];
-    const next = pts[1];
-    const sdx = next.x - start.x;
-    const sdy = next.y - start.y;
-    const slen = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
-    const snx = -sdy / slen * hw;
-    const sny = sdx / slen * hw;
-    const checkerCount = 10;
-    for (let c = 0; c < checkerCount; c++) {
-      const t = c / checkerCount;
-      const t2 = (c + 1) / checkerCount;
-      ctx.fillStyle = c % 2 === 0 ? '#ffffff' : '#111111';
+    for (const seg of fillSegments) {
+      if (seg.length < 2) continue;
+      ctx.strokeStyle = ROAD_LIGHT;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([16, 16]);
+      ctx.lineDashOffset = -time * 0.01;
       ctx.beginPath();
-      ctx.moveTo(start.x + lerp(snx, -snx, t), start.y + lerp(sny, -sny, t));
-      ctx.lineTo(start.x + lerp(snx, -snx, t2), start.y + lerp(sny, -sny, t2));
-      ctx.lineTo(start.x - sdx * 0.05 + lerp(snx, -snx, t2), start.y - sdy * 0.05 + lerp(sny, -sny, t2));
-      ctx.lineTo(start.x - sdx * 0.05 + lerp(snx, -snx, t), start.y - sdy * 0.05 + lerp(sny, -sny, t));
+      for (let s = 0; s < seg.length; s++) {
+        const idx = seg[s];
+        const p = pts[idx];
+        if (s === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (targetZ === null || targetZ === 0) {
+      const start = pts[0];
+      const next = pts[1];
+      const sdx = next.x - start.x;
+      const sdy = next.y - start.y;
+      const slen = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
+      const snx = -sdy / slen * hw;
+      const sny = sdx / slen * hw;
+      const checkerCount = 10;
+      for (let c = 0; c < checkerCount; c++) {
+        const t = c / checkerCount;
+        const t2 = (c + 1) / checkerCount;
+        ctx.fillStyle = c % 2 === 0 ? '#ffffff' : '#111111';
+        ctx.beginPath();
+        ctx.moveTo(start.x + lerp(snx, -snx, t), start.y + lerp(sny, -sny, t));
+        ctx.lineTo(start.x + lerp(snx, -snx, t2), start.y + lerp(sny, -sny, t2));
+        ctx.lineTo(start.x - sdx * 0.05 + lerp(snx, -snx, t2), start.y - sdy * 0.05 + lerp(sny, -sny, t2));
+        ctx.lineTo(start.x - sdx * 0.05 + lerp(snx, -snx, t), start.y - sdy * 0.05 + lerp(sny, -sny, t));
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  drawBridgeShadows(track: Track) {
+    const ctx = this.ctx;
+    const pts = track.points;
+    const hw = track.width / 2;
+
+    for (let i = 0; i < pts.length; i++) {
+      const z = pts[i].z ?? 0;
+      if (z <= 0) continue;
+
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len * hw;
+      const ny = dx / len * hw;
+
+      const shadowOffset = 8 + z * 8;
+      const shadowAlpha = Math.min(0.4, 0.15 + z * 0.1);
+
+      ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
+      ctx.beginPath();
+      ctx.moveTo(p1.x + nx + shadowOffset, p1.y + ny + shadowOffset);
+      ctx.lineTo(p2.x + nx + shadowOffset, p2.y + ny + shadowOffset);
+      ctx.lineTo(p2.x - nx + shadowOffset, p2.y - ny + shadowOffset);
+      ctx.lineTo(p1.x - nx + shadowOffset, p1.y - ny + shadowOffset);
       ctx.closePath();
       ctx.fill();
     }
+  }
+
+  drawBridgeStructures(track: Track) {
+    const ctx = this.ctx;
+    const pts = track.points;
+    const hw = track.width / 2;
+
+    for (let i = 0; i < pts.length; i += 3) {
+      const z = pts[i].z ?? 0;
+      if (z <= 0) continue;
+
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len * hw;
+      const ny = dx / len * hw;
+
+      const height = z * 24;
+      const pillarX1 = p1.x + nx * 0.7;
+      const pillarY1 = p1.y + ny * 0.7;
+      const pillarX2 = p1.x - nx * 0.7;
+      const pillarY2 = p1.y - ny * 0.7;
+
+      const grad1 = ctx.createLinearGradient(pillarX1, pillarY1, pillarX1 + 8, pillarY1 + 8);
+      grad1.addColorStop(0, '#888899');
+      grad1.addColorStop(1, '#555566');
+      ctx.fillStyle = grad1;
+      ctx.fillRect(pillarX1 - 5, pillarY1 - 2, 10, height);
+
+      const grad2 = ctx.createLinearGradient(pillarX2, pillarY2, pillarX2 + 8, pillarY2 + 8);
+      grad2.addColorStop(0, '#888899');
+      grad2.addColorStop(1, '#555566');
+      ctx.fillStyle = grad2;
+      ctx.fillRect(pillarX2 - 5, pillarY2 - 2, 10, height);
+
+      ctx.fillStyle = '#666677';
+      ctx.fillRect(pillarX1 - 7, pillarY1 - 5, 14, 6);
+      ctx.fillRect(pillarX2 - 7, pillarY2 - 5, 14, 6);
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      const z = pts[i].z ?? 0;
+      if (z <= 0) continue;
+
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len * hw;
+      const ny = dx / len * hw;
+
+      const railColor = z > 1 ? '#aaccff' : '#88aacc';
+
+      ctx.strokeStyle = railColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p1.x + nx * 0.95, p1.y + ny * 0.95 - z * 4);
+      ctx.lineTo(p2.x + nx * 0.95, p2.y + ny * 0.95 - z * 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(p1.x - nx * 0.95, p1.y - ny * 0.95 - z * 4);
+      ctx.lineTo(p2.x - nx * 0.95, p2.y - ny * 0.95 - z * 4);
+      ctx.stroke();
+
+      ctx.fillStyle = railColor;
+      for (let t = 0; t <= 1; t += 0.25) {
+        const px = p1.x + dx * t;
+        const py = p1.y + dy * t;
+        ctx.fillRect(px + nx * 0.95 - 1, py + ny * 0.95 - z * 4, 2, 6);
+        ctx.fillRect(px - nx * 0.95 - 1, py - ny * 0.95 - z * 4, 2, 6);
+      }
+    }
+  }
+
+  getMaxZ(track: Track): number {
+    let maxZ = 0;
+    for (const p of track.points) {
+      if ((p.z ?? 0) > maxZ) maxZ = p.z ?? 0;
+    }
+    return Math.round(maxZ);
   }
 
   drawTireMarks(marks: TireMark[]) {

@@ -80,6 +80,10 @@ export const updateCarPhysics = (
 ) => {
   if (car.finished) return;
 
+  const nearest = nearestTrackDist(car.x, car.y, track);
+  const trackZ = track.points[nearest.nearestIdx].z ?? 0;
+  car.z = trackZ;
+
   const mod = getEnvModifiers(env);
 
   let effectiveInput = input;
@@ -165,10 +169,10 @@ export const updateCarPhysics = (
   const newY = car.y + Math.sin(moveAngle) * car.speed;
 
   const mod2 = getEnvModifiers(env);
-  const { dist: trackDist } = nearestTrackDist(newX, newY, track);
+  const nearestSameZ = nearestTrackDistSameZ(newX, newY, track, car.z);
   const halfWidth = track.width / 2;
 
-  if (trackDist < halfWidth - 2) {
+  if (nearestSameZ.dist < halfWidth - 2) {
     car.x = newX;
     car.y = newY;
     if (isInBoostZone(newX, newY, track) && car.spinTime <= 0) {
@@ -203,6 +207,29 @@ export const nearestTrackDist = (x: number, y: number, track: Track): { dist: nu
   return { dist: minDist, nearestIdx };
 };
 
+export const nearestTrackDistSameZ = (x: number, y: number, track: Track, targetZ: number): { dist: number; nearestIdx: number } => {
+  let minDist = Infinity;
+  let nearestIdx = 0;
+  const pts = track.points;
+  const zTarget = Math.round(targetZ);
+  for (let i = 0; i < pts.length; i++) {
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % pts.length];
+    const z1 = Math.round(p1.z ?? 0);
+    const z2 = Math.round(p2.z ?? 0);
+    if (z1 !== zTarget && z2 !== zTarget) continue;
+    const { dist } = pointToSegmentDist(x, y, p1.x, p1.y, p2.x, p2.y);
+    if (dist < minDist) {
+      minDist = dist;
+      nearestIdx = i;
+    }
+  }
+  if (minDist === Infinity) {
+    return nearestTrackDist(x, y, track);
+  }
+  return { dist: minDist, nearestIdx };
+};
+
 export const isInBoostZone = (x: number, y: number, track: Track): boolean => {
   const { nearestIdx } = nearestTrackDist(x, y, track);
   return track.boostZones.some((z) => {
@@ -217,6 +244,9 @@ export const nearestTrackIdx = (x: number, y: number, track: Track): number => {
 
 export const checkCarCollision = (car: Car, other: Car): boolean => {
   if (car.isGhost || other.isGhost) return false;
+  const carZ = Math.round(car.z);
+  const otherZ = Math.round(other.z);
+  if (carZ !== otherZ) return false;
   const dx = car.x - other.x;
   const dy = car.y - other.y;
   const r1 = 18 * car.scale;

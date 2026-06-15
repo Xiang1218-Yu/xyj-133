@@ -240,6 +240,7 @@ export default function GameCanvas() {
           colorDark: tpl.colorDark,
           x: pos.x,
           y: pos.y,
+          z: 0,
           angle: pos.angle,
           speed: 0,
           maxSpeed: stats.maxSpeed,
@@ -377,24 +378,114 @@ export default function GameCanvas() {
       renderer.updateWeather(16, camera);
       renderer.beginCamera(camera);
       renderer.drawGrassTexture(activeTrack);
-      renderer.drawTrack(activeTrack, ts);
+
+      const maxZ = renderer.getMaxZ(activeTrack);
+
+      renderer.drawBridgeShadows(activeTrack);
+
+      renderer.drawTrack(activeTrack, ts, 0);
       renderer.drawRoadWet(activeTrack);
-      renderer.drawTireMarks(st.tireMarks);
+
+      const tireMarksByZ: Record<number, typeof st.tireMarks> = {};
+      for (const m of st.tireMarks) {
+        const z = m.z ?? 0;
+        if (!tireMarksByZ[z]) tireMarksByZ[z] = [];
+        tireMarksByZ[z].push(m);
+      }
+      if (tireMarksByZ[0]) renderer.drawTireMarks(tireMarksByZ[0]);
+
       if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
-        renderer.drawItemBoxes(st.itemBoxes, ts);
-        renderer.drawBananas(st.bananas);
-        renderer.drawMissiles(st.missiles);
-        renderer.drawMines(st.mines, ts);
+        const filterItemsByZ = <T extends { x: number; y: number }>(items: T[], z: number): T[] => {
+          return items.filter((item) => {
+            let bestIdx = 0, bestDist = Infinity;
+            for (let i = 0; i < activeTrack.points.length; i++) {
+              const p = activeTrack.points[i];
+              const dx = p.x - item.x, dy = p.y - item.y;
+              const d = dx * dx + dy * dy;
+              if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            return Math.round(activeTrack.points[bestIdx].z ?? 0) === z;
+          });
+        };
+
+        const itemsZ0 = filterItemsByZ(st.itemBoxes, 0);
+        const bananasZ0 = filterItemsByZ(st.bananas, 0);
+        const missilesZ0 = filterItemsByZ(st.missiles, 0);
+        const minesZ0 = filterItemsByZ(st.mines, 0);
+
+        renderer.drawItemBoxes(itemsZ0, ts);
+        renderer.drawBananas(bananasZ0);
+        renderer.drawMissiles(missilesZ0);
+        renderer.drawMines(minesZ0, ts);
         renderer.drawLightnings(st.lightnings, st.cars, ts);
       }
+
       if (st.obstaclesEnabled) {
         renderer.drawObstacles(st.obstacles, ts);
       }
-      const sortedForDraw = [...st.cars].sort((a, b) => a.y - b.y);
-      for (const car of sortedForDraw) {
+
+      const carsByZ: Record<number, typeof st.cars> = {};
+      for (const c of st.cars) {
+        const z = Math.round(c.z);
+        if (!carsByZ[z]) carsByZ[z] = [];
+        carsByZ[z].push(c);
+      }
+
+      const carsZ0 = carsByZ[0] ?? [];
+      const sortedZ0 = [...carsZ0].sort((a, b) => a.y - b.y);
+      for (const car of sortedZ0) {
         renderer.drawCar(car, ts);
       }
-      renderer.drawParticles(st.particles);
+
+      const particlesByZ: Record<number, typeof st.particles> = {};
+      for (const p of st.particles) {
+        const z = p.z ?? 0;
+        if (!particlesByZ[z]) particlesByZ[z] = [];
+        particlesByZ[z].push(p);
+      }
+      if (particlesByZ[0]) renderer.drawParticles(particlesByZ[0]);
+
+      renderer.drawBridgeStructures(activeTrack);
+
+      for (let z = 1; z <= maxZ; z++) {
+        renderer.drawTrack(activeTrack, ts, z);
+
+        if (tireMarksByZ[z]) renderer.drawTireMarks(tireMarksByZ[z]);
+
+        if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
+          const filterItemsByZ = <T extends { x: number; y: number }>(items: T[], targetZ: number): T[] => {
+            return items.filter((item) => {
+              let bestIdx = 0, bestDist = Infinity;
+              for (let i = 0; i < activeTrack.points.length; i++) {
+                const p = activeTrack.points[i];
+                const dx = p.x - item.x, dy = p.y - item.y;
+                const d = dx * dx + dy * dy;
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+              }
+              return Math.round(activeTrack.points[bestIdx].z ?? 0) === targetZ;
+            });
+          };
+
+          const itemsZ = filterItemsByZ(st.itemBoxes, z);
+          const bananasZ = filterItemsByZ(st.bananas, z);
+          const missilesZ = filterItemsByZ(st.missiles, z);
+          const minesZ = filterItemsByZ(st.mines, z);
+
+          renderer.drawItemBoxes(itemsZ, ts);
+          renderer.drawBananas(bananasZ);
+          renderer.drawMissiles(missilesZ);
+          renderer.drawMines(minesZ, ts);
+        }
+
+        const carsZ = carsByZ[z] ?? [];
+        const sortedZ = [...carsZ].sort((a, b) => a.y - b.y);
+        for (const car of sortedZ) {
+          renderer.drawCar(car, ts);
+        }
+
+        if (particlesByZ[z]) renderer.drawParticles(particlesByZ[z]);
+      }
+
       renderer.drawWeatherParticles();
       renderer.endCamera();
       renderer.drawFog();
@@ -511,12 +602,13 @@ export default function GameCanvas() {
             for (const side of [-1, 1]) {
               const px = car.x + Math.cos(back) * 12 + Math.cos(back + Math.PI / 2) * side * 7;
               const py = car.y + Math.sin(back) * 12 + Math.sin(back + Math.PI / 2) * side * 7;
-              st.tireMarks.push({ x: px, y: py, angle: car.angle, alpha: 0.5 });
+              st.tireMarks.push({ x: px, y: py, z: car.z, angle: car.angle, alpha: 0.5 });
             }
             if (Math.random() < 0.4) {
               st.particles.push({
                 x: car.x + (Math.random() - 0.5) * 10,
                 y: car.y + (Math.random() - 0.5) * 10,
+                z: car.z,
                 vx: (Math.random() - 0.5) * 0.8,
                 vy: (Math.random() - 0.5) * 0.8,
                 life: 500, maxLife: 500,
@@ -560,6 +652,7 @@ export default function GameCanvas() {
               st.particles.push({
                 x: car.x + (Math.random() - 0.5) * 16,
                 y: car.y + (Math.random() - 0.5) * 16,
+                z: car.z,
                 vx: -Math.cos(car.angle) * 0.6 + (Math.random() - 0.5) * 0.4,
                 vy: -Math.sin(car.angle) * 0.6 + (Math.random() - 0.5) * 0.4,
                 life: 300, maxLife: 300,
@@ -573,6 +666,7 @@ export default function GameCanvas() {
             st.particles.push({
               x: car.x + Math.cos(back) * 14 + (Math.random() - 0.5) * 4,
               y: car.y + Math.sin(back) * 14 + (Math.random() - 0.5) * 4,
+              z: car.z,
               vx: Math.cos(back) * 1.2 + (Math.random() - 0.5) * 0.5,
               vy: Math.sin(back) * 1.2 + (Math.random() - 0.5) * 0.5,
               life: 350, maxLife: 350,
@@ -585,6 +679,7 @@ export default function GameCanvas() {
             st.particles.push({
               x: car.x + (Math.random() - 0.5) * 20,
               y: car.y + (Math.random() - 0.5) * 20,
+              z: car.z,
               vx: (Math.random() - 0.5) * 2,
               vy: (Math.random() - 0.5) * 2,
               life: 400, maxLife: 400,
@@ -610,6 +705,7 @@ export default function GameCanvas() {
               st.particles.push({
                 x: car.x + (Math.random() - 0.5) * 20,
                 y: car.y + (Math.random() - 0.5) * 20,
+                z: car.z,
                 vx: (Math.random() - 0.5) * 3,
                 vy: (Math.random() - 0.5) * 3,
                 life: 600, maxLife: 600,
@@ -845,6 +941,7 @@ export default function GameCanvas() {
           colorDark: tpl.colorDark,
           x: pos.x,
           y: pos.y,
+          z: 0,
           angle: pos.angle,
           speed: 0,
           maxSpeed: tpl.maxSpeed,

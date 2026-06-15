@@ -93,6 +93,7 @@ export interface Car {
   colorDark: string;
   x: number;
   y: number;
+  z: number;
   angle: number;
   speed: number;
   maxSpeed: number;
@@ -171,6 +172,7 @@ export interface CarTemplate {
 export interface TrackPoint {
   x: number;
   y: number;
+  z?: number;
 }
 
 export type TrackDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
@@ -194,6 +196,7 @@ export interface Track {
 export interface TireMark {
   x: number;
   y: number;
+  z?: number;
   angle: number;
   alpha: number;
 }
@@ -201,6 +204,7 @@ export interface TireMark {
 export interface Particle {
   x: number;
   y: number;
+  z?: number;
   vx: number;
   vy: number;
   life: number;

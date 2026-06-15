@@ -3,9 +3,14 @@ import type { Track, TrackPoint, CustomTrack, TrackDifficulty, TrackTheme } from
 const catmullRom = (p0: TrackPoint, p1: TrackPoint, p2: TrackPoint, p3: TrackPoint, t: number): TrackPoint => {
   const t2 = t * t;
   const t3 = t2 * t;
+  const z0 = p0.z ?? 0;
+  const z1 = p1.z ?? 0;
+  const z2 = p2.z ?? 0;
+  const z3 = p3.z ?? 0;
   return {
     x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
     y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+    z: 0.5 * ((2 * z1) + (-z0 + z2) * t + (2 * z0 - 5 * z1 + 4 * z2 - z3) * t2 + (-z0 + 3 * z1 - 3 * z2 + z3) * t3),
   };
 };
 
@@ -252,6 +257,41 @@ const TRACK_VOLCANO_PEAK = buildTrackFromControlPoints(
   [0, 3, 5, 7, 10, 12, 14],
 );
 
+const TRACK_OVERPASS_LOOP = buildTrackFromControlPoints(
+  'overpass-loop',
+  '立交回旋',
+  [
+    { x: 1000, y: 700, z: 0 },
+    { x: 1300, y: 600, z: 0 },
+    { x: 1550, y: 400, z: 0 },
+    { x: 1700, y: 700, z: 1 },
+    { x: 1600, y: 950, z: 2 },
+    { x: 1300, y: 1050, z: 2 },
+    { x: 1000, y: 1100, z: 2 },
+    { x: 700, y: 1050, z: 2 },
+    { x: 450, y: 850, z: 2 },
+    { x: 400, y: 600, z: 2 },
+    { x: 550, y: 380, z: 1 },
+    { x: 800, y: 300, z: 0 },
+    { x: 1100, y: 350, z: 0 },
+    { x: 1400, y: 500, z: 0 },
+    { x: 1500, y: 750, z: 0 },
+    { x: 1300, y: 950, z: 0 },
+    { x: 1000, y: 1000, z: 0 },
+    { x: 700, y: 950, z: 0 },
+    { x: 550, y: 750, z: 0 },
+  ],
+  120,
+  'hard',
+  'city',
+  '8字形立体交叉赛道，中心高架穿越，小心别开错层',
+  '#cc66ff',
+  3,
+  [1, 5, 8, 12, 16],
+  [0, 3, 6, 9, 13, 17],
+  [0, 4, 8, 12, 16],
+);
+
 export const PRESET_TRACKS: Track[] = [
   TRACK_FOREST_OVAL,
   TRACK_BEACH_DRIFT,
@@ -259,6 +299,7 @@ export const PRESET_TRACKS: Track[] = [
   TRACK_CITY_STREETS,
   TRACK_SNOW_MOUNTAIN,
   TRACK_VOLCANO_PEAK,
+  TRACK_OVERPASS_LOOP,
 ];
 
 export const DEFAULT_TRACK = TRACK_FOREST_OVAL;

@@ -307,7 +307,7 @@ export const useGameStore = create<GameState>((set, get) => {
         name: '',
         color: '#000',
         colorDark: '#000',
-        x: 0, y: 0, angle: 0, speed: 0,
+        x: 0, y: 0, z: 0, angle: 0, speed: 0,
         maxSpeed: 0, acceleration: 0, handling: 0, friction: 0,
         isPlayer: isPlayerFlags[i],
         playerIndex: playerIndices[i],

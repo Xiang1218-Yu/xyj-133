@@ -11,7 +11,7 @@ import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCusto
 import type { Track } from '../engine/types';
 import { CAR_TEMPLATES, getCarTemplate } from '../engine/cars';
 import {
-  updateCarPhysics, nearestTrackIdx, checkCarCollision, resolveCarCollision, isInBoostZone,
+  updateCarPhysics, nearestTrackIdx, nearestTrackIdxSameZ, checkCarCollision, resolveCarCollision, isInBoostZone,
   updateWackyGravity, GRAVITY_FLIP_INTERVAL, GRAVITY_WARNING_TIME,
 } from '../engine/physics';
 import { updateAI } from '../engine/ai';
@@ -718,10 +718,12 @@ export default function GameCanvas() {
         const checkpoints = activeTrack.checkpoints;
         for (const car of st.cars) {
           if (car.finished) continue;
-          const idx = nearestTrackIdx(car.x, car.y, activeTrack);
+          const idx = nearestTrackIdxSameZ(car.x, car.y, activeTrack, car.z);
           const nextSeqIdx = (car.checkpoint + 1) % checkpoints.length;
           const nextTrackIdx = checkpoints[nextSeqIdx];
-          const nearCheckpoint = idx === nextTrackIdx || Math.abs(idx - nextTrackIdx) <= 2;
+          const nextZ = Math.round(activeTrack.points[nextTrackIdx].z ?? 0);
+          const carZRounded = Math.round(car.z);
+          const nearCheckpoint = (idx === nextTrackIdx || Math.abs(idx - nextTrackIdx) <= 2) && nextZ === carZRounded;
           if (nearCheckpoint) {
             const prevSeqIdx = car.checkpoint;
             car.checkpoint = nextSeqIdx;
@@ -766,13 +768,13 @@ export default function GameCanvas() {
 
         if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
           for (const car of st.cars) {
-            if (!car.finished) tryCollectItemBox(car, st.itemBoxes);
+            if (!car.finished) tryCollectItemBox(car, st.itemBoxes, activeTrack);
             updateCarItemEffects(car, st.particles, dt);
           }
           updateItemBoxes(st.itemBoxes, dt);
-          updateBananas(st.bananas, st.cars, st.particles, dt);
+          updateBananas(st.bananas, st.cars, st.particles, activeTrack, dt);
           updateMissiles(st.missiles, st.cars, st.particles, dt);
-          updateMines(st.mines, st.cars, st.particles, dt);
+          updateMines(st.mines, st.cars, st.particles, activeTrack, dt);
           updateLightnings(st.lightnings, st.cars, st.particles, dt);
         }
         if (st.obstaclesEnabled) {

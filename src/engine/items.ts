@@ -3,6 +3,7 @@ import type {
   MineInstance, LightningInstance,
 } from './types';
 import { pickRandom, dist, angleDiff, randRange } from '../utils/math';
+import { nearestTrackDistSameZ } from './physics';
 
 const ITEM_TYPES: ItemType[] = ['boost', 'shield', 'banana', 'missile', 'mine', 'shrink', 'giant', 'lightning', 'ghost', 'magnet', 'hyperboost'];
 
@@ -10,11 +11,15 @@ export const randomItem = (): ItemType => pickRandom(ITEM_TYPES);
 
 export const tryCollectItemBox = (
   car: Car,
-  boxes: ItemBoxInstance[]
+  boxes: ItemBoxInstance[],
+  track: Track,
 ): boolean => {
   if (car.currentItem) return false;
+  const carZ = Math.round(car.z);
   for (const box of boxes) {
     if (box.collected) continue;
+    const boxNearest = nearestTrackDistSameZ(box.x, box.y, track, carZ);
+    if (boxNearest.dist >= track.width) continue;
     const collectRadius = car.hasMagnet ? 120 : 55;
     if (dist(car.x, car.y, box.x, box.y) < collectRadius) {
       box.collected = true;
@@ -248,13 +253,17 @@ export const updateBananas = (
   bananas: BananaInstance[],
   cars: Car[],
   particles: Particle[],
+  track: Track,
   dt: number
 ) => {
   for (const b of bananas) {
     if (!b.active) continue;
+    const bNearest = nearestTrackDistSameZ(b.x, b.y, track, 0);
+    const bZ = Math.round(track.points[bNearest.nearestIdx].z ?? 0);
     for (const car of cars) {
       if (car.id === b.ownerId) continue;
       if (car.isGhost) continue;
+      if (Math.round(car.z) !== bZ) continue;
       const hitRadius = 22 * car.scale;
       if (dist(car.x, car.y, b.x, b.y) < hitRadius) {
         if (car.hasShield) {
@@ -262,7 +271,7 @@ export const updateBananas = (
           car.shieldTime = 0;
           for (let i = 0; i < 6; i++) {
             particles.push({
-              x: car.x, y: car.y,
+              x: car.x, y: car.y, z: car.z,
               vx: randRange(-2, 2), vy: randRange(-2, 2),
               life: 300, maxLife: 300, color: '#33ccff', size: 3,
             });
@@ -272,7 +281,7 @@ export const updateBananas = (
           car.speed *= 0.4;
           for (let i = 0; i < 10; i++) {
             particles.push({
-              x: car.x, y: car.y,
+              x: car.x, y: car.y, z: car.z,
               vx: randRange(-3, 3), vy: randRange(-3, 3),
               life: 500, maxLife: 500, color: '#ffee33', size: 3,
             });
@@ -290,6 +299,7 @@ export const updateMines = (
   mines: MineInstance[],
   cars: Car[],
   particles: Particle[],
+  track: Track,
   dt: number
 ) => {
   for (const m of mines) {
@@ -303,9 +313,13 @@ export const updateMines = (
       continue;
     }
 
+    const mNearest = nearestTrackDistSameZ(m.x, m.y, track, 0);
+    const mZ = Math.round(track.points[mNearest.nearestIdx].z ?? 0);
+
     for (const car of cars) {
       if (car.id === m.ownerId) continue;
       if (car.isGhost) continue;
+      if (Math.round(car.z) !== mZ) continue;
       const hitRadius = 28 * car.scale;
       if (dist(car.x, car.y, m.x, m.y) < hitRadius) {
         if (car.hasShield) {
@@ -313,7 +327,7 @@ export const updateMines = (
           car.shieldTime = 0;
           for (let i = 0; i < 10; i++) {
             particles.push({
-              x: car.x, y: car.y,
+              x: car.x, y: car.y, z: car.z,
               vx: randRange(-3, 3), vy: randRange(-3, 3),
               life: 400, maxLife: 400, color: '#33ccff', size: 3,
             });
@@ -327,7 +341,7 @@ export const updateMines = (
           for (let i = 0; i < 24; i++) {
             const pAngle = (i / 24) * Math.PI * 2;
             particles.push({
-              x: m.x, y: m.y,
+              x: m.x, y: m.y, z: car.z,
               vx: Math.cos(pAngle) * randRange(2, 6),
               vy: Math.sin(pAngle) * randRange(2, 6),
               life: 600, maxLife: 600,

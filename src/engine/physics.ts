@@ -80,9 +80,21 @@ export const updateCarPhysics = (
 ) => {
   if (car.finished) return;
 
-  const nearest = nearestTrackDist(car.x, car.y, track);
-  const trackZ = track.points[nearest.nearestIdx].z ?? 0;
-  car.z = trackZ;
+  const zSyncResult = nearestTrackDistSameZ(car.x, car.y, track, car.z);
+  const nearestPt = track.points[zSyncResult.nearestIdx];
+  const nextPt = track.points[(zSyncResult.nearestIdx + 1) % track.points.length];
+  const trackZ = nearestPt.z ?? 0;
+  const nextZ = nextPt.z ?? 0;
+
+  const t = Math.min(1, Math.max(0, zSyncResult.dist / (track.width / 2)));
+  const lerpZ = trackZ + (nextZ - trackZ) * t;
+  const maxZChange = 0.1;
+  const targetZ = lerpZ;
+  if (Math.abs(targetZ - car.z) < maxZChange) {
+    car.z = targetZ;
+  } else {
+    car.z += Math.sign(targetZ - car.z) * maxZChange;
+  }
 
   const mod = getEnvModifiers(env);
 
@@ -171,6 +183,7 @@ export const updateCarPhysics = (
   const mod2 = getEnvModifiers(env);
   const nearestSameZ = nearestTrackDistSameZ(newX, newY, track, car.z);
   const halfWidth = track.width / 2;
+  const carZRounded = Math.round(car.z);
 
   if (nearestSameZ.dist < halfWidth - 2) {
     car.x = newX;
@@ -180,10 +193,40 @@ export const updateCarPhysics = (
     }
   } else {
     car.speed *= mod2.offTrackPenalty;
-    const pushBack = 0.5;
-    car.x += (newX - car.x) * 0.3;
-    car.y += (newY - car.y) * 0.3;
-    void pushBack;
+
+    const p1 = track.points[nearestSameZ.nearestIdx];
+    const p2 = track.points[(nearestSameZ.nearestIdx + 1) % track.points.length];
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+
+    const toCarX = car.x - p1.x, toCarY = car.y - p1.y;
+    const dot = toCarX * nx + toCarY * ny;
+    const pushDir = dot >= 0 ? 1 : -1;
+
+    const maxIn = halfWidth - 4;
+    car.x = p1.x + nx * maxIn * pushDir;
+    car.y = p1.y + ny * maxIn * pushDir;
+
+    const checkOtherZ = (checkX: number, checkY: number): number | null => {
+      for (let z = 0; z <= 10; z++) {
+        if (z === carZRounded) continue;
+        const nd = nearestTrackDistSameZ(checkX, checkY, track, z);
+        if (nd.dist < halfWidth * 0.8) return z;
+      }
+      return null;
+    };
+
+    const blockX = car.x + Math.cos(car.angle) * 20;
+    const blockY = car.y + Math.sin(car.angle) * 20;
+    const blockingZ = checkOtherZ(blockX, blockY);
+    if (blockingZ !== null) {
+      car.speed *= 0.85;
+      if (car.speed > 0.3) {
+        car.speed = 0.2;
+      }
+    }
   }
 
   if (car.drifting) {
@@ -240,6 +283,10 @@ export const isInBoostZone = (x: number, y: number, track: Track): boolean => {
 
 export const nearestTrackIdx = (x: number, y: number, track: Track): number => {
   return nearestTrackDist(x, y, track).nearestIdx;
+};
+
+export const nearestTrackIdxSameZ = (x: number, y: number, track: Track, targetZ: number): number => {
+  return nearestTrackDistSameZ(x, y, track, targetZ).nearestIdx;
 };
 
 export const checkCarCollision = (car: Car, other: Car): boolean => {

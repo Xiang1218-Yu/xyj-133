@@ -1,6 +1,6 @@
 import type { Car, InputState, Track } from './types';
 import { normalizeAngle, angleDiff } from '../utils/math';
-import { nearestTrackIdx } from './physics';
+import { nearestTrackIdx, nearestTrackIdxSameZ } from './physics';
 
 export const updateAI = (car: Car, track: Track, dt: number): InputState => {
   const input: InputState = {
@@ -8,7 +8,7 @@ export const updateAI = (car: Car, track: Track, dt: number): InputState => {
   };
   if (car.finished) return input;
 
-  const currentIdx = nearestTrackIdx(car.x, car.y, track);
+  const currentIdx = nearestTrackIdxSameZ(car.x, car.y, track, car.z);
   const lookAhead = Math.floor(8 + car.aiSkill * 5);
   const targetIdx = (currentIdx + lookAhead) % track.points.length;
   const target = track.points[targetIdx];

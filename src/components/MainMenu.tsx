@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
 import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -26,6 +26,12 @@ export default function MainMenu() {
   const useCustomTrack = useGameStore((s) => s.useCustomTrack);
   const toggleUseCustomTrack = useGameStore((s) => s.toggleUseCustomTrack);
   const customTrack = useGameStore((s) => s.customTrack);
+  const coins = useGameStore((s) => s.coins);
+  const racesPlayed = useGameStore((s) => s.racesPlayed);
+  const racesWon = useGameStore((s) => s.racesWon);
+  const openShop = useGameStore((s) => s.openShop);
+  const upgrades = useGameStore((s) => s.upgrades);
+  const getUpgradedCarStats = useGameStore((s) => s.getUpgradedCarStats);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -64,6 +70,8 @@ export default function MainMenu() {
     customization: CarCustomization;
   }) => {
     const car = CAR_TEMPLATES[selectedId];
+    const upgradedStats = getUpgradedCarStats(selectedId);
+    const carUpgrades = upgrades[selectedId] ?? { speed: 0, acceleration: 0, handling: 0, friction: 0 };
     const prev = () => onSelect((selectedId - 1 + CAR_TEMPLATES.length) % CAR_TEMPLATES.length);
     const next = () => onSelect((selectedId + 1) % CAR_TEMPLATES.length);
 
@@ -203,15 +211,24 @@ export default function MainMenu() {
             <div className="space-y-2 text-left text-[9px] md:text-[10px]">
               <div className="flex items-center gap-2">
                 <span className="w-12 text-[#aaaaee]">SPD</span>
-                {bar(car.maxSpeed, 6, color)}
+                {bar(upgradedStats.maxSpeed, 6, color)}
+                {carUpgrades.speed > 0 && (
+                  <span className="text-[8px]" style={{ color: '#ffd700' }}>+{carUpgrades.speed}</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-12 text-[#aaaaee]">ACC</span>
-                {bar(car.acceleration, 0.25, color)}
+                {bar(upgradedStats.acceleration, 0.25, color)}
+                {carUpgrades.acceleration > 0 && (
+                  <span className="text-[8px]" style={{ color: '#ffd700' }}>+{carUpgrades.acceleration}</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-12 text-[#aaaaee]">HND</span>
-                {bar(car.handling, 0.08, color)}
+                {bar(upgradedStats.handling, 0.08, color)}
+                {carUpgrades.handling > 0 && (
+                  <span className="text-[8px]" style={{ color: '#ffd700' }}>+{carUpgrades.handling}</span>
+                )}
               </div>
             </div>
           </div>
@@ -290,7 +307,54 @@ export default function MainMenu() {
         ))}
       </div>
 
-      <div className="relative z-10 text-center mb-4 md:mb-6 px-4">
+      <div className="absolute top-3 md:top-4 left-3 md:left-4 right-3 md:right-4 z-20 flex justify-between items-start gap-2">
+        <div
+          className="px-3 py-2 md:px-4 md:py-2.5 flex items-center gap-2 border-4"
+          style={{
+            background: '#1a1a3a',
+            borderColor: '#ffd700',
+            boxShadow: '0 0 15px #ffd70044, 3px 3px 0 #000000',
+          }}
+        >
+          <Coins className="w-4 h-4 md:w-5 md:h-5" style={{ color: '#ffd700' }} />
+          <span className="text-[10px] md:text-xs tracking-wider" style={{ color: '#ffd700' }}>
+            {coins}
+          </span>
+        </div>
+
+        <div className="flex gap-2">
+          {racesPlayed > 0 && (
+            <div
+              className="hidden md:flex px-3 py-2 items-center gap-2 border-4"
+              style={{
+                background: '#1a1a3a',
+                borderColor: '#33ccff',
+                boxShadow: '0 0 10px #33ccff33, 3px 3px 0 #000000',
+              }}
+            >
+              <Trophy className="w-4 h-4" style={{ color: '#33ccff' }} />
+              <span className="text-[10px] tracking-wider" style={{ color: '#33ccff' }}>
+                {racesWon}/{racesPlayed} 胜
+              </span>
+            </div>
+          )}
+          <button
+            onClick={openShop}
+            className="px-3 py-2 md:px-4 md:py-2.5 flex items-center gap-2 text-[10px] md:text-xs hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+            style={{
+              background: '#ffd700',
+              color: '#443300',
+              border: '4px solid #aa8800',
+              boxShadow: '3px 3px 0 #000000',
+            }}
+          >
+            <ShoppingBag className="w-4 h-4 md:w-5 md:h-5" />
+            <span className="hidden sm:inline tracking-wider">SHOP</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="relative z-10 text-center mb-4 md:mb-6 px-4 pt-10 md:pt-12">
         <h1
           className="text-3xl md:text-5xl lg:text-6xl mb-2 tracking-wider"
           style={{

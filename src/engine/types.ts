@@ -1,4 +1,37 @@
-export type GamePhase = 'menu' | 'customize' | 'countdown' | 'racing' | 'finished' | 'replay' | 'editor';
+export type GamePhase = 'menu' | 'customize' | 'countdown' | 'racing' | 'finished' | 'replay' | 'editor' | 'shop';
+
+export type UpgradeType = 'speed' | 'acceleration' | 'handling' | 'friction';
+
+export interface CarUpgrades {
+  speed: number;
+  acceleration: number;
+  handling: number;
+  friction: number;
+}
+
+export interface CarSkin {
+  id: string;
+  name: string;
+  price: number;
+  bodyColor: string;
+  stripeColor: string;
+  stripePattern: StripePattern;
+  stripeEnabled: boolean;
+  wheelColor: string;
+  description: string;
+  limited?: boolean;
+}
+
+export interface PlayerProgress {
+  coins: number;
+  totalCoinsEarned: number;
+  racesWon: number;
+  racesPlayed: number;
+  upgrades: Record<number, CarUpgrades>;
+  ownedSkins: string[];
+  selectedSkinP1: string | null;
+  selectedSkinP2: string | null;
+}
 
 export type EditorTool = 'select' | 'add' | 'delete' | 'checkpoint' | 'boost' | 'item' | 'move';
 

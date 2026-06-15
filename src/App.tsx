@@ -6,6 +6,7 @@ import ResultScreen from './components/ResultScreen'
 import ReplayControls from './components/ReplayControls'
 import CarCustomizer from './components/CarCustomizer'
 import TrackEditor from './components/TrackEditor'
+import Shop from './components/Shop'
 
 export default function App() {
   const phase = useGameStore(s => s.phase)
@@ -15,6 +16,7 @@ export default function App() {
       {phase === 'menu' && <MainMenu />}
       {phase === 'customize' && <CarCustomizer />}
       {phase === 'editor' && <TrackEditor />}
+      {phase === 'shop' && <Shop />}
       {(phase === 'countdown' || phase === 'racing') && (
         <>
           <GameCanvas />

@@ -1,8 +1,10 @@
+import { useEffect, useRef } from 'react';
 import type { Car, ReplayData } from '../engine/types';
 import { useGameStore } from '../store/gameStore';
 import { formatTime } from '../utils/math';
 import { CAR_TEMPLATES } from '../engine/cars';
-import { RotateCcw, Home, Timer, Trophy, Users, Play } from 'lucide-react';
+import { calcRaceReward } from '../engine/skins';
+import { RotateCcw, Home, Timer, Trophy, Users, Play, Coins, ShoppingBag } from 'lucide-react';
 
 export default function ResultScreen() {
   const cars = useGameStore((s) => s.cars);
@@ -16,6 +18,11 @@ export default function ResultScreen() {
   const resetForCountdown = useGameStore((s) => s.resetForCountdown);
   const backToMenu = useGameStore((s) => s.backToMenu);
   const startReplay = useGameStore((s) => s.startReplay);
+  const coins = useGameStore((s) => s.coins);
+  const lastEarnedCoins = useGameStore((s) => s.lastEarnedCoins);
+  const recordRaceResult = useGameStore((s) => s.recordRaceResult);
+  const openShop = useGameStore((s) => s.openShop);
+  const hasRecordedRef = useRef(false);
 
   const isTimeAttack = gameMode === 'timeattack';
   const isDrift = gameMode === 'drift';
@@ -47,6 +54,15 @@ export default function ResultScreen() {
   const p2Won = p2Rank === 1;
   const anyPlayerWon = p1Won || p2Won;
   const isDraw = isTwoPlayer && p1Rank === p2Rank;
+
+  useEffect(() => {
+    if (hasRecordedRef.current) return;
+    hasRecordedRef.current = true;
+    if (p1Rank > 0) {
+      const reward = calcRaceReward(p1Rank, gameMode);
+      recordRaceResult(p1Rank, reward);
+    }
+  }, [p1Rank, gameMode, recordRaceResult]);
 
   const medals = ['🥇', '🥈', '🥉', '🏁'];
   const rankColors = ['#ffdd00', '#cccccc', '#cc8844', '#88aaff'];
@@ -442,6 +458,29 @@ export default function ResultScreen() {
           </div>
         </div>
 
+        {lastEarnedCoins > 0 && (
+          <div
+            className="flex justify-center items-center gap-2 mb-3 md:mb-4 px-4 py-2 md:py-3 border-4 text-center"
+            style={{
+              background: '#2a1a00',
+              borderColor: '#ffd700',
+              boxShadow: '0 0 20px #ffd70044, 3px 3px 0 #000',
+              animation: 'pulse-glow 1.5s ease-in-out infinite',
+            }}
+          >
+            <Coins className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#ffd700' }} />
+            <span
+              className="text-sm md:text-lg tracking-wider"
+              style={{ color: '#ffd700', textShadow: '2px 2px 0 #665500' }}
+            >
+              +{lastEarnedCoins} 金币奖励!
+            </span>
+            <span className="text-[9px] md:text-[10px]" style={{ color: '#aa8800' }}>
+              (总计: {coins})
+            </span>
+          </div>
+        )}
+
         <div className="flex gap-2 md:gap-4 justify-center flex-wrap shrink-0">
           <button
             onClick={() => {
@@ -471,6 +510,19 @@ export default function ResultScreen() {
           >
             <RotateCcw className="w-4 h-4 md:w-5 md:h-5" />
             RACE AGAIN
+          </button>
+          <button
+            onClick={openShop}
+            className="px-5 md:px-8 py-2.5 md:py-3.5 flex items-center gap-2 text-[10px] md:text-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+            style={{
+              background: '#ffd700',
+              color: '#443300',
+              border: '4px solid #aa8800',
+              boxShadow: '4px 4px 0 #000000',
+            }}
+          >
+            <ShoppingBag className="w-4 h-4 md:w-5 md:h-5" />
+            SHOP
           </button>
           <button
             onClick={backToMenu}

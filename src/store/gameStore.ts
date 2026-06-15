@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint } from '../engine/types';
+import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint, CarUpgrades, PlayerProgress, UpgradeType } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
+import { calcUpgradeCost, MAX_UPGRADE_LEVEL, UPGRADE_BONUS, CAR_SKINS } from '../engine/skins';
 
 interface GameState {
   phase: GamePhase;
@@ -30,6 +31,15 @@ interface GameState {
   customTrack: CustomTrack;
   useCustomTrack: boolean;
   savedTracks: CustomTrack[];
+  coins: number;
+  totalCoinsEarned: number;
+  racesWon: number;
+  racesPlayed: number;
+  upgrades: Record<number, CarUpgrades>;
+  ownedSkins: string[];
+  selectedSkinP1: string | null;
+  selectedSkinP2: string | null;
+  lastEarnedCoins: number;
   setPhase: (p: GamePhase) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
@@ -76,6 +86,16 @@ interface GameState {
   resetCustomTrack: () => void;
   toggleUseCustomTrack: () => void;
   smoothTrackPoints: () => void;
+  openShop: () => void;
+  closeShop: () => void;
+  addCoins: (amount: number) => void;
+  spendCoins: (amount: number) => boolean;
+  upgradeCarStat: (carTemplateId: number, stat: UpgradeType) => boolean;
+  buySkin: (skinId: string) => boolean;
+  selectSkin: (player: 1 | 2, skinId: string | null) => void;
+  recordRaceResult: (rank: number, rewardCoins: number) => void;
+  getUpgradedCarStats: (carTemplateId: number) => { maxSpeed: number; acceleration: number; handling: number; friction: number };
+  applySkinToCustomization: (player: 1 | 2, skinId: string | null) => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -108,7 +128,46 @@ const createDefaultCustomTrack = (): CustomTrack => ({
   closed: true,
 });
 
-export const useGameStore = create<GameState>((set, get) => ({
+const createDefaultUpgrades = (): Record<number, CarUpgrades> => {
+  const upgrades: Record<number, CarUpgrades> = {};
+  CAR_TEMPLATES.forEach((tpl) => {
+    upgrades[tpl.id] = { speed: 0, acceleration: 0, handling: 0, friction: 0 };
+  });
+  return upgrades;
+};
+
+const loadProgress = (): Partial<PlayerProgress> => {
+  try {
+    const saved = localStorage.getItem('pixel_kart_progress');
+    if (saved) return JSON.parse(saved);
+  } catch {
+    // ignore
+  }
+  return {};
+};
+
+const saveProgress = (state: GameState) => {
+  try {
+    const progress: PlayerProgress = {
+      coins: state.coins,
+      totalCoinsEarned: state.totalCoinsEarned,
+      racesWon: state.racesWon,
+      racesPlayed: state.racesPlayed,
+      upgrades: state.upgrades,
+      ownedSkins: state.ownedSkins,
+      selectedSkinP1: state.selectedSkinP1,
+      selectedSkinP2: state.selectedSkinP2,
+    };
+    localStorage.setItem('pixel_kart_progress', JSON.stringify(progress));
+  } catch {
+    // ignore
+  }
+};
+
+export const useGameStore = create<GameState>((set, get) => {
+  const savedProgress = loadProgress();
+
+  return {
   phase: 'menu',
   selectedCarIdP1: 0,
   selectedCarIdP2: 1,
@@ -136,6 +195,15 @@ export const useGameStore = create<GameState>((set, get) => ({
   customTrack: createDefaultCustomTrack(),
   useCustomTrack: false,
   savedTracks: [],
+  coins: savedProgress.coins ?? 0,
+  totalCoinsEarned: savedProgress.totalCoinsEarned ?? 0,
+  racesWon: savedProgress.racesWon ?? 0,
+  racesPlayed: savedProgress.racesPlayed ?? 0,
+  upgrades: savedProgress.upgrades ?? createDefaultUpgrades(),
+  ownedSkins: savedProgress.ownedSkins ?? [],
+  selectedSkinP1: savedProgress.selectedSkinP1 ?? null,
+  selectedSkinP2: savedProgress.selectedSkinP2 ?? null,
+  lastEarnedCoins: 0,
 
   setPhase: (p) => set({ phase: p }),
   selectCarP1: (id) => set({ selectedCarIdP1: id, customizationP1: createDefaultCustomization(CAR_TEMPLATES[id]) }),
@@ -463,4 +531,117 @@ export const useGameStore = create<GameState>((set, get) => ({
       customTrack: { ...state.customTrack, points: smoothed },
     };
   }),
-}));
+
+  openShop: () => set({ phase: 'shop' }),
+  closeShop: () => set({ phase: 'menu' }),
+
+  addCoins: (amount) => set((state) => {
+    const newState = {
+      coins: state.coins + amount,
+      totalCoinsEarned: state.totalCoinsEarned + amount,
+    };
+    saveProgress({ ...state, ...newState });
+    return newState;
+  }),
+
+  spendCoins: (amount) => {
+    const state = get();
+    if (state.coins < amount) return false;
+    const newState = { coins: state.coins - amount };
+    set(newState);
+    saveProgress({ ...state, ...newState });
+    return true;
+  },
+
+  upgradeCarStat: (carTemplateId, stat) => {
+    const state = get();
+    const currentLevel = state.upgrades[carTemplateId]?.[stat] ?? 0;
+    if (currentLevel >= MAX_UPGRADE_LEVEL) return false;
+    const cost = calcUpgradeCost(currentLevel);
+    if (state.coins < cost) return false;
+    const newUpgrades = {
+      ...state.upgrades,
+      [carTemplateId]: {
+        ...state.upgrades[carTemplateId],
+        [stat]: currentLevel + 1,
+      },
+    };
+    const newState = {
+      coins: state.coins - cost,
+      upgrades: newUpgrades,
+    };
+    set(newState);
+    saveProgress({ ...state, ...newState });
+    return true;
+  },
+
+  buySkin: (skinId) => {
+    const state = get();
+    if (state.ownedSkins.includes(skinId)) return false;
+    const skin = CAR_SKINS.find((s) => s.id === skinId);
+    if (!skin) return false;
+    if (state.coins < skin.price) return false;
+    const newState = {
+      coins: state.coins - skin.price,
+      ownedSkins: [...state.ownedSkins, skinId],
+    };
+    set(newState);
+    saveProgress({ ...state, ...newState });
+    return true;
+  },
+
+  selectSkin: (player, skinId) => {
+    const state = get();
+    const key = player === 1 ? 'selectedSkinP1' : 'selectedSkinP2';
+    const newState = { [key]: skinId } as Partial<GameState>;
+    set(newState);
+    saveProgress({ ...state, ...newState });
+    if (skinId) {
+      get().applySkinToCustomization(player, skinId);
+    }
+  },
+
+  recordRaceResult: (rank, rewardCoins) => set((state) => {
+    const won = rank === 1;
+    const newState = {
+      coins: state.coins + rewardCoins,
+      totalCoinsEarned: state.totalCoinsEarned + rewardCoins,
+      racesPlayed: state.racesPlayed + 1,
+      racesWon: state.racesWon + (won ? 1 : 0),
+      lastEarnedCoins: rewardCoins,
+    };
+    saveProgress({ ...state, ...newState });
+    return newState;
+  }),
+
+  getUpgradedCarStats: (carTemplateId) => {
+    const state = get();
+    const tpl = CAR_TEMPLATES[carTemplateId % CAR_TEMPLATES.length];
+    const up = state.upgrades[carTemplateId] ?? { speed: 0, acceleration: 0, handling: 0, friction: 0 };
+    return {
+      maxSpeed: tpl.maxSpeed + up.speed * UPGRADE_BONUS.speed,
+      acceleration: tpl.acceleration + up.acceleration * UPGRADE_BONUS.acceleration,
+      handling: tpl.handling + up.handling * UPGRADE_BONUS.handling,
+      friction: Math.min(0.995, tpl.friction + up.friction * UPGRADE_BONUS.friction),
+    };
+  },
+
+  applySkinToCustomization: (player, skinId) => {
+    if (!skinId) return;
+    const skin = CAR_SKINS.find((s) => s.id === skinId);
+    if (!skin) return;
+    const patch: Partial<CarCustomization> = {
+      bodyColor: skin.bodyColor,
+      stripeColor: skin.stripeColor,
+      stripePattern: skin.stripePattern,
+      stripeEnabled: skin.stripeEnabled,
+      wheelColor: skin.wheelColor,
+    };
+    if (player === 1) {
+      set((state) => ({ customizationP1: { ...state.customizationP1, ...patch } }));
+    } else {
+      set((state) => ({ customizationP2: { ...state.customizationP2, ...patch } }));
+    }
+  },
+  };
+});

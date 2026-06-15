@@ -205,6 +205,16 @@ export default function GameCanvas() {
       st.cars = carIds.map((tplId, i) => {
         const tpl = getCarTemplate(tplId);
         const pos = starts[i];
+        const isPlayer = isPlayerFlags[i];
+        let stats = {
+          maxSpeed: tpl.maxSpeed,
+          acceleration: tpl.acceleration,
+          handling: tpl.handling,
+          friction: tpl.friction,
+        };
+        if (isPlayer) {
+          stats = useGameStore.getState().getUpgradedCarStats(tplId);
+        }
         return {
           id: i,
           name: tpl.name,
@@ -214,10 +224,10 @@ export default function GameCanvas() {
           y: pos.y,
           angle: pos.angle,
           speed: 0,
-          maxSpeed: tpl.maxSpeed,
-          acceleration: tpl.acceleration,
-          handling: tpl.handling,
-          friction: tpl.friction,
+          maxSpeed: stats.maxSpeed,
+          acceleration: stats.acceleration,
+          handling: stats.handling,
+          friction: stats.friction,
           isPlayer: isPlayerFlags[i],
           playerIndex: playerIndices[i],
           lap: 0,

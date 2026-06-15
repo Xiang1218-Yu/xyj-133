@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import type { Car, ReplayData } from '../engine/types';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, AI_DIFFICULTY_LABEL, AI_DIFFICULTY_COLOR } from '../store/gameStore';
 import { formatTime } from '../utils/math';
 import { CAR_TEMPLATES } from '../engine/cars';
 import { calcRaceReward } from '../engine/skins';
-import { RotateCcw, Home, Timer, Trophy, Users, Play, Coins, ShoppingBag } from 'lucide-react';
+import { RotateCcw, Home, Timer, Trophy, Users, Play, Coins, ShoppingBag, Bot } from 'lucide-react';
 
 export default function ResultScreen() {
   const cars = useGameStore((s) => s.cars);
@@ -15,6 +15,7 @@ export default function ResultScreen() {
   const selectedCarIdP2 = useGameStore((s) => s.selectedCarIdP2);
   const weather = useGameStore((s) => s.weather);
   const timeOfDay = useGameStore((s) => s.timeOfDay);
+  const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const resetForCountdown = useGameStore((s) => s.resetForCountdown);
   const backToMenu = useGameStore((s) => s.backToMenu);
   const startReplay = useGameStore((s) => s.startReplay);
@@ -456,6 +457,12 @@ export default function ResultScreen() {
           <div className="px-3 py-1.5 border-2" style={{ background: '#15152e', borderColor: '#ffcc88', color: '#ffcc88' }}>
             {timeOfDay === 'day' ? '☀ 白天' : timeOfDay === 'dawn' ? '🌅 黎明' : timeOfDay === 'sunset' ? '🌇 黄昏' : '🌙 夜晚'}
           </div>
+          {gameMode === 'grandprix' && playerCount === 1 && (
+            <div className="px-3 py-1.5 border-2 flex items-center gap-1" style={{ background: '#15152e', borderColor: AI_DIFFICULTY_COLOR[aiDifficulty], color: AI_DIFFICULTY_COLOR[aiDifficulty] }}>
+              <Bot className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              AI难度: {AI_DIFFICULTY_LABEL[aiDifficulty]}
+            </div>
+          )}
         </div>
 
         {lastEarnedCoins > 0 && (

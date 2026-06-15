@@ -33,6 +33,7 @@ export interface PlayerProgress {
   selectedSkinP2: string | null;
   obstaclesEnabled: boolean;
   wackyMode: boolean;
+  aiDifficulty?: AIDifficulty;
 }
 
 export type EditorTool = 'select' | 'add' | 'delete' | 'checkpoint' | 'boost' | 'item' | 'move';
@@ -174,6 +175,8 @@ export interface TrackPoint {
   y: number;
   z?: number;
 }
+
+export type AIDifficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 export type TrackDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
 export type TrackTheme = 'forest' | 'desert' | 'city' | 'snow' | 'volcano' | 'beach';

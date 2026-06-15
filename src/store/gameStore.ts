@@ -1,8 +1,43 @@
 import { create } from 'zustand';
-import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint, CarUpgrades, PlayerProgress, UpgradeType } from '../engine/types';
+import type { GamePhase, Car, ItemType, GameMode, SplitScreenLayout, WeatherType, TimeOfDay, ReplayData, ReplayViewMode, CarCustomization, EditorTool, CustomTrack, TrackPoint, CarUpgrades, PlayerProgress, UpgradeType, AIDifficulty } from '../engine/types';
 import { CAR_TEMPLATES } from '../engine/cars';
 import { calcUpgradeCost, MAX_UPGRADE_LEVEL, UPGRADE_BONUS, CAR_SKINS } from '../engine/skins';
 import { DEFAULT_TRACK } from '../engine/track';
+
+export const AI_DIFFICULTY_SKILL: Record<AIDifficulty, number[]> = {
+  easy: [0.25, 0.2, 0.3],
+  normal: [0.55, 0.5, 0.6],
+  hard: [0.75, 0.7, 0.8],
+  expert: [0.92, 0.88, 0.95],
+};
+
+export const AI_DIFFICULTY_LABEL: Record<AIDifficulty, string> = {
+  easy: '简单',
+  normal: '普通',
+  hard: '困难',
+  expert: '专家',
+};
+
+export const AI_DIFFICULTY_DESC: Record<AIDifficulty, string> = {
+  easy: 'AI驾驶保守，适合新手练习',
+  normal: '标准AI难度，均衡挑战',
+  hard: 'AI驾驶激进，需要技巧',
+  expert: '顶级AI，完美驾驶线路',
+};
+
+export const AI_DIFFICULTY_COLOR: Record<AIDifficulty, string> = {
+  easy: '#66ff88',
+  normal: '#ffdd33',
+  hard: '#ff8833',
+  expert: '#ff3366',
+};
+
+export const AI_DIFFICULTY_STARS: Record<AIDifficulty, number> = {
+  easy: 1,
+  normal: 2,
+  hard: 3,
+  expert: 4,
+};
 
 interface GameState {
   phase: GamePhase;
@@ -44,7 +79,9 @@ interface GameState {
   lastEarnedCoins: number;
   obstaclesEnabled: boolean;
   wackyMode: boolean;
+  aiDifficulty: AIDifficulty;
   setPhase: (p: GamePhase) => void;
+  setAIDifficulty: (d: AIDifficulty) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
   setGameMode: (mode: GameMode) => void;
@@ -168,6 +205,7 @@ const saveProgress = (state: GameState) => {
       selectedSkinP2: state.selectedSkinP2,
       obstaclesEnabled: state.obstaclesEnabled,
       wackyMode: state.wackyMode,
+      aiDifficulty: state.aiDifficulty,
     };
     localStorage.setItem('pixel_kart_progress', JSON.stringify(progress));
   } catch {
@@ -218,8 +256,14 @@ export const useGameStore = create<GameState>((set, get) => {
   lastEarnedCoins: 0,
   obstaclesEnabled: savedProgress.obstaclesEnabled ?? true,
   wackyMode: savedProgress.wackyMode ?? false,
+  aiDifficulty: (savedProgress.aiDifficulty as AIDifficulty) ?? 'normal',
 
   setPhase: (p) => set({ phase: p }),
+  setAIDifficulty: (d) => {
+    const newState = { aiDifficulty: d };
+    saveProgress({ ...get(), ...newState });
+    set(newState);
+  },
   selectCarP1: (id) => set({ selectedCarIdP1: id, customizationP1: createDefaultCustomization(CAR_TEMPLATES[id]) }),
   selectCarP2: (id) => set({ selectedCarIdP2: id, customizationP2: createDefaultCustomization(CAR_TEMPLATES[id]) }),
   setGameMode: (mode) => set({ gameMode: mode }),
@@ -258,7 +302,8 @@ export const useGameStore = create<GameState>((set, get) => {
   setReplayFrameIndex: (i) => set({ replayFrameIndex: i }),
 
   resetForCountdown: () => {
-    const { selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, customizationP1, customizationP2 } = get();
+    const { selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, customizationP1, customizationP2, aiDifficulty } = get();
+    const aiSkills = AI_DIFFICULTY_SKILL[aiDifficulty];
     
     let carIds: number[] = [];
     let isPlayerFlags: boolean[] = [];
@@ -334,7 +379,7 @@ export const useGameStore = create<GameState>((set, get) => {
         gravityFlipped: false,
         gravityFlipAnim: 0,
         aiTargetIdx: 0,
-        aiSkill: isPlayerFlags[i] ? 0 : [0.8, 0.65, 0.75][i - 1] ?? 0.7,
+        aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i - 1] ?? aiSkills[0],
         itemCooldown: 0,
         customization: customizations[i],
         scale: 1,

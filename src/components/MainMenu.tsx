@@ -1,8 +1,8 @@
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, AI_DIFFICULTY_LABEL, AI_DIFFICULTY_COLOR, AI_DIFFICULTY_STARS, AI_DIFFICULTY_DESC } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
-import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern, Track } from '../engine/types';
-import { PRESET_TRACKS, DIFFICULTY_LABEL, DIFFICULTY_COLOR, DIFFICULTY_STARS, THEME_LABEL, getTrackById } from '../engine/track';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle, Zap, Star, MapPin, Layers } from 'lucide-react';
+import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern, AIDifficulty } from '../engine/types';
+import { PRESET_TRACKS, DIFFICULTY_LABEL, DIFFICULTY_COLOR, DIFFICULTY_STARS, THEME_LABEL } from '../engine/track';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle, Zap, Star, MapPin, Layers, Bot } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -39,6 +39,8 @@ export default function MainMenu() {
   const toggleObstacles = useGameStore((s) => s.toggleObstacles);
   const wackyMode = useGameStore((s) => s.wackyMode);
   const toggleWackyMode = useGameStore((s) => s.toggleWackyMode);
+  const aiDifficulty = useGameStore((s) => s.aiDifficulty);
+  const setAIDifficulty = useGameStore((s) => s.setAIDifficulty);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -652,6 +654,53 @@ export default function MainMenu() {
             </div>
           </button>
         </div>
+
+        {gameMode === 'grandprix' && playerCount === 1 && (
+          <div className="w-full max-w-2xl">
+            <div className="text-center mb-2 md:mb-3" style={{ color: '#33ccff' }}>
+              <span className="text-[10px] md:text-xs tracking-widest">AI DIFFICULTY 对手难度</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+              {(['easy', 'normal', 'hard', 'expert'] as AIDifficulty[]).map((diff) => {
+                const active = aiDifficulty === diff;
+                const color = AI_DIFFICULTY_COLOR[diff];
+                const stars = AI_DIFFICULTY_STARS[diff];
+                return (
+                  <button
+                    key={diff}
+                    onClick={() => setAIDifficulty(diff)}
+                    className={`p-2 md:p-3 border-4 transition-all ${active ? 'translate-y-[-2px]' : ''}`}
+                    style={{
+                      background: active ? '#1a1a3a' : '#12122a',
+                      borderColor: active ? color : '#333366',
+                      boxShadow: active ? `0 0 20px ${color}44, 4px 4px 0 #000000` : '4px 4px 0 #000000',
+                    }}
+                  >
+                    <div className="flex flex-col items-center gap-1 md:gap-2">
+                      <Bot className="w-5 h-5 md:w-7 md:h-7" style={{ color: active ? color : '#8888aa' }} />
+                      <div className="text-[10px] md:text-[11px] tracking-wider" style={{ color: active ? color : '#ccccdd' }}>
+                        {AI_DIFFICULTY_LABEL[diff]}
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`w-2 h-2 md:w-2.5 md:h-2.5 ${i < stars ? 'fill-current' : ''}`}
+                            style={{ color: i < stars ? color : '#333355' }}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                        {AI_DIFFICULTY_DESC[diff]}
+                      </div>
+                      {active && <Check className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: '#00ff88' }} />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="w-full max-w-4xl">
           <div className="text-center mb-2 md:mb-3" style={{ color: '#ff88cc' }}>

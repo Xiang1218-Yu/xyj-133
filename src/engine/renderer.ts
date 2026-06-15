@@ -2,6 +2,7 @@ import type {
   Car, Track, TireMark, Particle, ItemBoxInstance,
   BananaInstance, MissileInstance, Camera, ItemType,
   WeatherType, TimeOfDay, EnvConfig, Obstacle, WackyState,
+  MineInstance, LightningInstance,
 } from './types';
 import { obstacleHitFlash } from './obstacles';
 import { lerp } from '../utils/math';
@@ -525,6 +526,106 @@ export class Renderer {
     }
   }
 
+  drawMines(mines: MineInstance[], time: number) {
+    const ctx = this.ctx;
+    for (const m of mines) {
+      if (!m.active) continue;
+      ctx.save();
+      ctx.translate(m.x, m.y);
+      ctx.rotate(m.angle);
+
+      const blink = m.armed ? 1 : 0.5 + 0.5 * Math.sin(time * 0.01);
+      ctx.globalAlpha = m.armed ? 1 : 0.7;
+
+      ctx.fillStyle = '#333344';
+      ctx.beginPath();
+      ctx.arc(0, 0, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#222233';
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        ctx.fillStyle = '#111122';
+        ctx.fillRect(
+          Math.cos(a) * 12 - 2,
+          Math.sin(a) * 12 - 2,
+          4, 4
+        );
+      }
+
+      const flash = m.armed ? (0.3 + 0.7 * blink) : 0.3;
+      ctx.fillStyle = `rgba(255,${Math.floor(80 * flash)},${Math.floor(80 * flash)},${flash})`;
+      ctx.beginPath();
+      ctx.arc(0, -6, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (m.armed) {
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 10px "Press Start 2P", "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', 0, 1);
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  drawLightnings(lightnings: LightningInstance[], cars: Car[], time: number) {
+    const ctx = this.ctx;
+    for (const l of lightnings) {
+      if (!l.active) continue;
+      const target = cars.find((c) => c.id === l.targetId);
+      if (!target) continue;
+
+      ctx.save();
+
+      const startY = target.y - 200;
+      const endY = target.y;
+      const startX = target.x + (Math.random() - 0.5) * 20;
+
+      ctx.strokeStyle = l.strikeProgress > 0.3 ? '#ffffff' : '#ffff00';
+      ctx.lineWidth = 3 + Math.random() * 2;
+      ctx.globalAlpha = Math.max(0, 1 - l.strikeProgress);
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+
+      let currentX = startX;
+      let currentY = startY;
+      const segments = 8;
+      for (let i = 1; i <= segments; i++) {
+        currentY = startY + ((endY - startY) * (i / segments));
+        currentX += (Math.random() - 0.5) * 20;
+        ctx.lineTo(currentX, currentY);
+      }
+      ctx.lineTo(target.x, target.y);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      if (l.strikeProgress > 0.3) {
+        const glow = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, 60);
+        glow.addColorStop(0, 'rgba(255,255,0,0.6)');
+        glow.addColorStop(1, 'rgba(255,255,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, 60, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
   drawObstacles(obstacles: Obstacle[], time: number) {
     const ctx = this.ctx;
     for (const obs of obstacles) {
@@ -628,6 +729,12 @@ export class Renderer {
     ctx.save();
     ctx.translate(car.x, car.y);
 
+    ctx.scale(car.scale, car.scale);
+
+    if (car.isGhost) {
+      ctx.globalAlpha = 0.5 + 0.2 * Math.sin(time * 0.01);
+    }
+
     if (car.gravityFlipAnim > 0) {
       const flipProgress = 1 - (car.gravityFlipAnim / 400);
       const scaleY = Math.abs(Math.cos(flipProgress * Math.PI));
@@ -636,6 +743,17 @@ export class Renderer {
     } else {
       ctx.rotate(car.angle);
       if (car.gravityFlipped) ctx.scale(1, -1);
+    }
+
+    if (car.hasMagnet) {
+      const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
+      ctx.strokeStyle = `rgba(255,68,136,${pulse})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(0, 0, 40, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     if (car.hasShield) {
@@ -647,7 +765,20 @@ export class Renderer {
       ctx.stroke();
     }
 
-    if (car.boostTime > 0) {
+    if (car.hyperBoostTime > 0) {
+      const f = 0.6 + 0.4 * Math.sin(time * 0.05);
+      const grad = ctx.createLinearGradient(-30, 0, -10, 0);
+      grad.addColorStop(0, 'rgba(255,0,255,0)');
+      grad.addColorStop(0.5, `rgba(0,255,255,${f})`);
+      grad.addColorStop(1, 'rgba(255,255,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(-14, -8);
+      ctx.lineTo(-35 - f * 10, 0);
+      ctx.lineTo(-14, 8);
+      ctx.closePath();
+      ctx.fill();
+    } else if (car.boostTime > 0) {
       const f = 0.5 + 0.5 * Math.sin(time * 0.04);
       ctx.fillStyle = `rgba(255,200,0,${f})`;
       ctx.beginPath();
@@ -753,6 +884,7 @@ export class Renderer {
       ctx.fillRect(-6, -2, 2, 4);
     }
 
+    ctx.globalAlpha = 1;
     ctx.restore();
 
     if (car.isPlayer && !car.finished) {
@@ -1018,6 +1150,13 @@ export const ITEM_ICON: Record<ItemType, string> = {
   shield: '🛡',
   banana: '🍌',
   missile: '🚀',
+  mine: '💣',
+  shrink: '🔽',
+  giant: '🔼',
+  lightning: '⚡',
+  ghost: '👻',
+  magnet: '🧲',
+  hyperboost: '🌟',
 };
 
 export const ITEM_COLOR: Record<ItemType, string> = {
@@ -1025,4 +1164,11 @@ export const ITEM_COLOR: Record<ItemType, string> = {
   shield: '#33ccff',
   banana: '#ffaa22',
   missile: '#ff4466',
+  mine: '#ff4444',
+  shrink: '#88ff88',
+  giant: '#ff8844',
+  lightning: '#ffff00',
+  ghost: '#aa88ff',
+  magnet: '#ff4488',
+  hyperboost: '#ff00ff',
 };

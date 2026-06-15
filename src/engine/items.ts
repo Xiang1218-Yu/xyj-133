@@ -1,9 +1,10 @@
 import type {
   Car, ItemBoxInstance, BananaInstance, MissileInstance, ItemType, Particle, Track,
+  MineInstance, LightningInstance,
 } from './types';
 import { pickRandom, dist, angleDiff, randRange } from '../utils/math';
 
-const ITEM_TYPES: ItemType[] = ['boost', 'shield', 'banana', 'missile'];
+const ITEM_TYPES: ItemType[] = ['boost', 'shield', 'banana', 'missile', 'mine', 'shrink', 'giant', 'lightning', 'ghost', 'magnet', 'hyperboost'];
 
 export const randomItem = (): ItemType => pickRandom(ITEM_TYPES);
 
@@ -14,7 +15,8 @@ export const tryCollectItemBox = (
   if (car.currentItem) return false;
   for (const box of boxes) {
     if (box.collected) continue;
-    if (dist(car.x, car.y, box.x, box.y) < 55) {
+    const collectRadius = car.hasMagnet ? 120 : 55;
+    if (dist(car.x, car.y, box.x, box.y) < collectRadius) {
       box.collected = true;
       box.respawnTimer = 5000;
       car.currentItem = randomItem();
@@ -40,7 +42,9 @@ export const activateItem = (
   allCars: Car[],
   bananas: BananaInstance[],
   missiles: MissileInstance[],
-  particles: Particle[]
+  particles: Particle[],
+  mines: MineInstance[] = [],
+  lightnings: LightningInstance[] = []
 ): ItemType | null => {
   const item = car.currentItem;
   if (!item) return null;
@@ -60,9 +64,31 @@ export const activateItem = (
         });
       }
       break;
+    case 'hyperboost':
+      car.hyperBoostTime = 5000;
+      car.boostTime = 5000;
+      for (let i = 0; i < 16; i++) {
+        particles.push({
+          x: car.x, y: car.y,
+          vx: randRange(-3, 3), vy: randRange(-3, 3),
+          life: 600, maxLife: 600,
+          color: i % 2 === 0 ? '#ff00ff' : '#00ffff', size: 4,
+        });
+      }
+      break;
     case 'shield':
       car.hasShield = true;
       car.shieldTime = 8000;
+      for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * Math.PI * 2;
+        particles.push({
+          x: car.x + Math.cos(angle) * 20,
+          y: car.y + Math.sin(angle) * 20,
+          vx: Math.cos(angle) * 2,
+          vy: Math.sin(angle) * 2,
+          life: 400, maxLife: 400, color: '#33ccff', size: 3,
+        });
+      }
       break;
     case 'banana':
       backAngle = car.angle + Math.PI;
@@ -73,6 +99,26 @@ export const activateItem = (
         active: true,
         ownerId: car.id,
       });
+      break;
+    case 'mine':
+      backAngle = car.angle + Math.PI;
+      mines.push({
+        x: car.x + Math.cos(backAngle) * 30,
+        y: car.y + Math.sin(backAngle) * 30,
+        angle: car.angle,
+        active: true,
+        ownerId: car.id,
+        armed: false,
+        armTimer: 1500,
+      });
+      for (let i = 0; i < 6; i++) {
+        particles.push({
+          x: car.x + Math.cos(backAngle) * 30,
+          y: car.y + Math.sin(backAngle) * 30,
+          vx: randRange(-1, 1), vy: randRange(-1, 1),
+          life: 300, maxLife: 300, color: '#ff4444', size: 3,
+        });
+      }
       break;
     case 'missile':
       target = findCarAhead(car, allCars);
@@ -85,6 +131,78 @@ export const activateItem = (
           active: true,
           ownerId: car.id,
           life: 4000,
+        });
+      }
+      break;
+    case 'shrink':
+      car.scale = 0.5;
+      car.scaleTime = 8000;
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        particles.push({
+          x: car.x, y: car.y,
+          vx: Math.cos(angle) * 3,
+          vy: Math.sin(angle) * 3,
+          life: 400, maxLife: 400, color: '#88ff88', size: 3,
+        });
+      }
+      break;
+    case 'giant':
+      car.scale = 1.8;
+      car.scaleTime = 8000;
+      for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        particles.push({
+          x: car.x, y: car.y,
+          vx: Math.cos(angle) * 4,
+          vy: Math.sin(angle) * 4,
+          life: 500, maxLife: 500, color: '#ff8844', size: 4,
+        });
+      }
+      break;
+    case 'lightning':
+      target = findLeaderCar(car, allCars);
+      if (target && target.id !== car.id) {
+        lightnings.push({
+          targetId: target.id,
+          active: true,
+          ownerId: car.id,
+          life: 1500,
+          strikeProgress: 0,
+        });
+        for (let i = 0; i < 20; i++) {
+          particles.push({
+            x: car.x + randRange(-20, 20),
+            y: car.y - 50 - randRange(0, 100),
+            vx: randRange(-1, 1), vy: randRange(-2, 0),
+            life: 600, maxLife: 600,
+            color: i % 2 === 0 ? '#ffff00' : '#ffffff', size: 3,
+          });
+        }
+      }
+      break;
+    case 'ghost':
+      car.isGhost = true;
+      car.ghostTime = 6000;
+      for (let i = 0; i < 12; i++) {
+        particles.push({
+          x: car.x, y: car.y,
+          vx: randRange(-2, 2), vy: randRange(-2, 2),
+          life: 500, maxLife: 500, color: '#aa88ff', size: 3,
+        });
+      }
+      break;
+    case 'magnet':
+      car.hasMagnet = true;
+      car.magnetTime = 10000;
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        particles.push({
+          x: car.x + Math.cos(angle) * 15,
+          y: car.y + Math.sin(angle) * 15,
+          vx: Math.cos(angle) * 1.5,
+          vy: Math.sin(angle) * 1.5,
+          life: 400, maxLife: 400, color: '#ff4488', size: 3,
         });
       }
       break;
@@ -112,6 +230,20 @@ const findCarAhead = (car: Car, allCars: Car[]): Car | null => {
   return best;
 };
 
+const findLeaderCar = (car: Car, allCars: Car[]): Car | null => {
+  let best: Car | null = null;
+  let bestProgress = -1;
+  for (const other of allCars) {
+    if (other.finished) continue;
+    const progress = other.lap * 10000 + other.checkpoint;
+    if (progress > bestProgress) {
+      bestProgress = progress;
+      best = other;
+    }
+  }
+  return best;
+};
+
 export const updateBananas = (
   bananas: BananaInstance[],
   cars: Car[],
@@ -122,7 +254,9 @@ export const updateBananas = (
     if (!b.active) continue;
     for (const car of cars) {
       if (car.id === b.ownerId) continue;
-      if (dist(car.x, car.y, b.x, b.y) < 22) {
+      if (car.isGhost) continue;
+      const hitRadius = 22 * car.scale;
+      if (dist(car.x, car.y, b.x, b.y) < hitRadius) {
         if (car.hasShield) {
           car.hasShield = false;
           car.shieldTime = 0;
@@ -150,6 +284,109 @@ export const updateBananas = (
     }
   }
   void dt;
+};
+
+export const updateMines = (
+  mines: MineInstance[],
+  cars: Car[],
+  particles: Particle[],
+  dt: number
+) => {
+  for (const m of mines) {
+    if (!m.active) continue;
+
+    if (!m.armed) {
+      m.armTimer -= dt;
+      if (m.armTimer <= 0) {
+        m.armed = true;
+      }
+      continue;
+    }
+
+    for (const car of cars) {
+      if (car.id === m.ownerId) continue;
+      if (car.isGhost) continue;
+      const hitRadius = 28 * car.scale;
+      if (dist(car.x, car.y, m.x, m.y) < hitRadius) {
+        if (car.hasShield) {
+          car.hasShield = false;
+          car.shieldTime = 0;
+          for (let i = 0; i < 10; i++) {
+            particles.push({
+              x: car.x, y: car.y,
+              vx: randRange(-3, 3), vy: randRange(-3, 3),
+              life: 400, maxLife: 400, color: '#33ccff', size: 3,
+            });
+          }
+        } else {
+          car.spinTime = 1500;
+          car.speed *= 0.2;
+          const angle = Math.atan2(car.y - m.y, car.x - m.x);
+          car.x += Math.cos(angle) * 20;
+          car.y += Math.sin(angle) * 20;
+          for (let i = 0; i < 24; i++) {
+            const pAngle = (i / 24) * Math.PI * 2;
+            particles.push({
+              x: m.x, y: m.y,
+              vx: Math.cos(pAngle) * randRange(2, 6),
+              vy: Math.sin(pAngle) * randRange(2, 6),
+              life: 600, maxLife: 600,
+              color: i % 3 === 0 ? '#ff4400' : i % 3 === 1 ? '#ffaa00' : '#ffff00',
+              size: 5,
+            });
+          }
+        }
+        m.active = false;
+        break;
+      }
+    }
+  }
+};
+
+export const updateLightnings = (
+  lightnings: LightningInstance[],
+  cars: Car[],
+  particles: Particle[],
+  dt: number
+) => {
+  for (const l of lightnings) {
+    if (!l.active) continue;
+    l.life -= dt;
+    l.strikeProgress = Math.min(1, l.strikeProgress + dt / 300);
+
+    if (l.strikeProgress >= 0.3 && l.strikeProgress < 0.3 + dt / 300) {
+      const target = cars.find((c) => c.id === l.targetId);
+      if (target && !target.finished) {
+        if (target.hasShield) {
+          target.hasShield = false;
+          target.shieldTime = 0;
+          for (let i = 0; i < 12; i++) {
+            particles.push({
+              x: target.x, y: target.y,
+              vx: randRange(-3, 3), vy: randRange(-3, 3),
+              life: 400, maxLife: 400, color: '#33ccff', size: 3,
+            });
+          }
+        } else {
+          target.spinTime = 1200;
+          target.speed *= 0.25;
+          for (let i = 0; i < 30; i++) {
+            particles.push({
+              x: target.x + randRange(-30, 30),
+              y: target.y + randRange(-30, 30),
+              vx: randRange(-4, 4), vy: randRange(-4, 4),
+              life: 500, maxLife: 500,
+              color: i % 2 === 0 ? '#ffff00' : '#ffffff', size: 4,
+            });
+          }
+        }
+      }
+    }
+
+    if (l.life <= 0) {
+      l.active = false;
+    }
+  }
 };
 
 export const updateMissiles = (
@@ -182,7 +419,9 @@ export const updateMissiles = (
 
     for (const car of cars) {
       if (car.id === m.ownerId) continue;
-      if (dist(car.x, car.y, m.x, m.y) < 22) {
+      if (car.isGhost) continue;
+      const hitRadius = 22 * car.scale;
+      if (dist(car.x, car.y, m.x, m.y) < hitRadius) {
         if (car.hasShield) {
           car.hasShield = false;
           car.shieldTime = 0;
@@ -223,6 +462,40 @@ export const updateParticles = (particles: Particle[], dt: number) => {
     p.y += p.vy;
     p.vx *= 0.96;
     p.vy *= 0.96;
+  }
+};
+
+export const updateCarItemEffects = (car: Car, particles: Particle[], dt: number) => {
+  if (car.scaleTime > 0) {
+    car.scaleTime -= dt;
+    if (car.scaleTime <= 0) {
+      car.scale = 1;
+      for (let i = 0; i < 8; i++) {
+        particles.push({
+          x: car.x, y: car.y,
+          vx: randRange(-2, 2), vy: randRange(-2, 2),
+          life: 300, maxLife: 300, color: '#ffffff', size: 3,
+        });
+      }
+    }
+  }
+
+  if (car.ghostTime > 0) {
+    car.ghostTime -= dt;
+    if (car.ghostTime <= 0) {
+      car.isGhost = false;
+    }
+  }
+
+  if (car.magnetTime > 0) {
+    car.magnetTime -= dt;
+    if (car.magnetTime <= 0) {
+      car.hasMagnet = false;
+    }
+  }
+
+  if (car.hyperBoostTime > 0) {
+    car.hyperBoostTime -= dt;
   }
 };
 

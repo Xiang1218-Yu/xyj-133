@@ -66,7 +66,7 @@ export const DEFAULT_TRACK_WIDTH = 120;
 export const EDITOR_CANVAS_WIDTH = 2000;
 export const EDITOR_CANVAS_HEIGHT = 1600;
 
-export type ItemType = 'boost' | 'shield' | 'banana' | 'missile';
+export type ItemType = 'boost' | 'shield' | 'banana' | 'missile' | 'mine' | 'shrink' | 'giant' | 'lightning' | 'ghost' | 'magnet' | 'hyperboost';
 
 export type GameMode = 'grandprix' | 'timeattack' | 'drift';
 
@@ -127,6 +127,13 @@ export interface Car {
   aiSkill: number;
   itemCooldown: number;
   customization: CarCustomization | null;
+  scale: number;
+  scaleTime: number;
+  isGhost: boolean;
+  ghostTime: number;
+  hasMagnet: boolean;
+  magnetTime: number;
+  hyperBoostTime: number;
 }
 
 export interface SplitViewport {
@@ -220,6 +227,24 @@ export interface MissileInstance {
   life: number;
 }
 
+export interface MineInstance {
+  x: number;
+  y: number;
+  angle: number;
+  active: boolean;
+  ownerId: number;
+  armed: boolean;
+  armTimer: number;
+}
+
+export interface LightningInstance {
+  targetId: number;
+  active: boolean;
+  ownerId: number;
+  life: number;
+  strikeProgress: number;
+}
+
 export interface InputState {
   up: boolean;
   down: boolean;
@@ -271,6 +296,10 @@ export interface CarSnapshot {
   currentItem: ItemType | null;
   gravityFlipped: boolean;
   gravityFlipAnim: number;
+  scale: number;
+  isGhost: boolean;
+  hasMagnet: boolean;
+  hyperBoostTime: number;
 }
 
 export type ObstacleType = 'static' | 'sway' | 'patrol';
@@ -306,6 +335,8 @@ export interface ReplayFrame {
   tireMarks: TireMark[];
   bananas: BananaInstance[];
   missiles: MissileInstance[];
+  mines: MineInstance[];
+  lightnings: LightningInstance[];
   obstacles: Obstacle[];
 }
 

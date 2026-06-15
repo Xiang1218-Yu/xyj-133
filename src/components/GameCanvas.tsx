@@ -4,6 +4,7 @@ import { Renderer } from '../engine/renderer';
 import type {
   Car, TireMark, Particle, ItemBoxInstance, BananaInstance, MissileInstance, Camera, InputState,
   GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay, Obstacle, WackyState,
+  MineInstance, LightningInstance,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
 import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCustom } from '../engine/track';
@@ -16,7 +17,8 @@ import {
 import { updateAI } from '../engine/ai';
 import {
   createItemBoxes, updateItemBoxes, tryCollectItemBox, activateItem,
-  updateBananas, updateMissiles, updateParticles,
+  updateBananas, updateMissiles, updateParticles, updateMines, updateLightnings,
+  updateCarItemEffects,
 } from '../engine/items';
 import { createObstacles, updateObstacles, updateObstacleCollisions } from '../engine/obstacles';
 import { lerp, clamp } from '../utils/math';
@@ -55,6 +57,8 @@ export default function GameCanvas() {
     itemBoxes: ItemBoxInstance[];
     bananas: BananaInstance[];
     missiles: MissileInstance[];
+    mines: MineInstance[];
+    lightnings: LightningInstance[];
     obstacles: Obstacle[];
     cameras: Camera[];
     renderer: Renderer | null;
@@ -88,6 +92,8 @@ export default function GameCanvas() {
       itemBoxes: [],
       bananas: [],
       missiles: [],
+      mines: [],
+      lightnings: [],
       obstacles: [],
       cameras: [
         { x: 1000, y: 800, zoom: 1, shake: 0 },
@@ -265,6 +271,13 @@ export default function GameCanvas() {
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
           customization: getCustomizationForCar(tplId, isPlayerFlags[i], playerIndices[i]),
+          scale: 1,
+          scaleTime: 0,
+          isGhost: false,
+          ghostTime: 0,
+          hasMagnet: false,
+          magnetTime: 0,
+          hyperBoostTime: 0,
         };
       });
 
@@ -272,6 +285,8 @@ export default function GameCanvas() {
       st.particles = [];
       st.bananas = [];
       st.missiles = [];
+      st.mines = [];
+      st.lightnings = [];
       st.obstacles = st.obstaclesEnabled ? createObstacles(activeTrack) : [];
       st.raceFinished = false;
       st.rankings = [];
@@ -323,7 +338,7 @@ export default function GameCanvas() {
       const player = st.cars.find((c) => c.isPlayer && c.playerIndex === playerIdx);
       if (!player || player.finished) return;
       if (st.gameMode === 'timeattack' || st.gameMode === 'drift') return;
-      const used = activateItem(player, st.cars, st.bananas, st.missiles, st.particles);
+      const used = activateItem(player, st.cars, st.bananas, st.missiles, st.particles, st.mines, st.lightnings);
       if (used === 'boost') {
         st.cameras[playerIdx].shake = 8;
       }
@@ -366,6 +381,8 @@ export default function GameCanvas() {
         renderer.drawItemBoxes(st.itemBoxes, ts);
         renderer.drawBananas(st.bananas);
         renderer.drawMissiles(st.missiles);
+        renderer.drawMines(st.mines, ts);
+        renderer.drawLightnings(st.lightnings, st.cars, ts);
       }
       if (st.obstaclesEnabled) {
         renderer.drawObstacles(st.obstacles, ts);
@@ -443,6 +460,8 @@ export default function GameCanvas() {
         st.tireMarks = rp.getTireMarks();
         st.bananas = rp.getBananas();
         st.missiles = rp.getMissiles();
+        st.mines = rp.getMines();
+        st.lightnings = rp.getLightnings();
         st.obstacles = rp.getObstacles();
         st.gameMode = rp.getGameMode();
         st.playerCount = rp.getPlayerCount();
@@ -649,10 +668,13 @@ export default function GameCanvas() {
         if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
           for (const car of st.cars) {
             if (!car.finished) tryCollectItemBox(car, st.itemBoxes);
+            updateCarItemEffects(car, st.particles, dt);
           }
           updateItemBoxes(st.itemBoxes, dt);
           updateBananas(st.bananas, st.cars, st.particles, dt);
           updateMissiles(st.missiles, st.cars, st.particles, dt);
+          updateMines(st.mines, st.cars, st.particles, dt);
+          updateLightnings(st.lightnings, st.cars, st.particles, dt);
         }
         if (st.obstaclesEnabled) {
           updateObstacles(st.obstacles, activeTrack, dt, ts);
@@ -668,7 +690,7 @@ export default function GameCanvas() {
         const elapsedRec = ts - st.raceStartTime;
         st.recorder.record(
           st.cars, st.particles, st.tireMarks,
-          st.bananas, st.missiles, st.obstacles, elapsedRec, ts,
+          st.bananas, st.missiles, st.mines, st.lightnings, st.obstacles, elapsedRec, ts,
         );
       }
 
@@ -854,6 +876,13 @@ export default function GameCanvas() {
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
           customization: getCustomizationForCar2(tplId, isPlayerFlags[i], playerIndices[i]),
+          scale: 1,
+          scaleTime: 0,
+          isGhost: false,
+          ghostTime: 0,
+          hasMagnet: false,
+          magnetTime: 0,
+          hyperBoostTime: 0,
         };
       });
 
@@ -861,6 +890,8 @@ export default function GameCanvas() {
       st.particles = [];
       st.bananas = [];
       st.missiles = [];
+      st.mines = [];
+      st.lightnings = [];
       st.obstacles = st.obstaclesEnabled ? createObstacles(activeTrack) : [];
       st.raceFinished = false;
       st.rankings = [];

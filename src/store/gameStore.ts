@@ -333,6 +333,13 @@ export const useGameStore = create<GameState>((set, get) => {
         aiSkill: isPlayerFlags[i] ? 0 : [0.8, 0.65, 0.75][i - 1] ?? 0.7,
         itemCooldown: 0,
         customization: customizations[i],
+        scale: 1,
+        scaleTime: 0,
+        isGhost: false,
+        ghostTime: 0,
+        hasMagnet: false,
+        magnetTime: 0,
+        hyperBoostTime: 0,
       })),
     });
   },

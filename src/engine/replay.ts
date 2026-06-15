@@ -1,6 +1,7 @@
 import type {
   Car, CarSnapshot, Particle, TireMark, BananaInstance, MissileInstance,
   ReplayFrame, ReplayData, ReplayViewMode, GameMode, EnvConfig, Camera, Obstacle,
+  MineInstance, LightningInstance,
 } from './types';
 import { MAIN_TRACK } from './track';
 import { lerp, clamp } from '../utils/math';
@@ -39,6 +40,8 @@ export class ReplayRecorder {
     tireMarks: TireMark[],
     bananas: BananaInstance[],
     missiles: MissileInstance[],
+    mines: MineInstance[],
+    lightnings: LightningInstance[],
     obstacles: Obstacle[],
     raceTime: number,
     ts: number,
@@ -70,6 +73,10 @@ export class ReplayRecorder {
       currentItem: c.currentItem,
       gravityFlipped: c.gravityFlipped,
       gravityFlipAnim: c.gravityFlipAnim,
+      scale: c.scale,
+      isGhost: c.isGhost,
+      hasMagnet: c.hasMagnet,
+      hyperBoostTime: c.hyperBoostTime,
     }));
 
     const recentParticles = particles
@@ -90,6 +97,8 @@ export class ReplayRecorder {
       tireMarks: recentTireMarks,
       bananas: bananas.map((b) => ({ ...b })),
       missiles: missiles.map((m) => ({ ...m })),
+      mines: mines.map((m) => ({ ...m })),
+      lightnings: lightnings.map((l) => ({ ...l })),
       obstacles: obstacles.map((o) => ({ ...o })),
     };
 
@@ -130,6 +139,8 @@ export class ReplayPlayer {
   private currentTireMarks: TireMark[] = [];
   private currentBananas: BananaInstance[] = [];
   private currentMissiles: MissileInstance[] = [];
+  private currentMines: MineInstance[] = [];
+  private currentLightnings: LightningInstance[] = [];
   private currentObstacles: Obstacle[] = [];
   private currentRaceTime = 0;
   private onFrameChange?: (idx: number) => void;
@@ -194,6 +205,14 @@ export class ReplayPlayer {
 
   getMissiles() {
     return this.currentMissiles;
+  }
+
+  getMines() {
+    return this.currentMines;
+  }
+
+  getLightnings() {
+    return this.currentLightnings;
   }
 
   getObstacles() {
@@ -350,6 +369,10 @@ export class ReplayPlayer {
         car.currentItem = snap.currentItem;
         car.gravityFlipped = snap.gravityFlipped;
         car.gravityFlipAnim = snap.gravityFlipAnim;
+        car.scale = snap.scale;
+        car.isGhost = snap.isGhost;
+        car.hasMagnet = snap.hasMagnet;
+        car.hyperBoostTime = snap.hyperBoostTime;
       }
     }
 
@@ -357,6 +380,8 @@ export class ReplayPlayer {
     this.currentTireMarks = frame.tireMarks.map((t) => ({ ...t }));
     this.currentBananas = frame.bananas.map((b) => ({ ...b }));
     this.currentMissiles = frame.missiles.map((m) => ({ ...m }));
+    this.currentMines = (frame.mines || []).map((m) => ({ ...m }));
+    this.currentLightnings = (frame.lightnings || []).map((l) => ({ ...l }));
     this.currentObstacles = (frame.obstacles || []).map((o) => ({ ...o }));
   }
 
@@ -398,12 +423,18 @@ export class ReplayPlayer {
       car.currentItem = snapTo.currentItem;
       car.gravityFlipped = snapTo.gravityFlipped;
       car.gravityFlipAnim = snapTo.gravityFlipAnim;
+      car.scale = snapTo.scale;
+      car.isGhost = snapTo.isGhost;
+      car.hasMagnet = snapTo.hasMagnet;
+      car.hyperBoostTime = lerp(snapFrom.hyperBoostTime, snapTo.hyperBoostTime, t);
     }
 
     this.currentParticles = to.particles.map((p) => ({ ...p }));
     this.currentTireMarks = to.tireMarks.map((tm) => ({ ...tm }));
     this.currentBananas = to.bananas.map((b) => ({ ...b }));
     this.currentMissiles = to.missiles.map((m) => ({ ...m }));
+    this.currentMines = (to.mines || []).map((m) => ({ ...m }));
+    this.currentLightnings = (to.lightnings || []).map((l) => ({ ...l }));
 
     const fromObs = from.obstacles || [];
     const toObs = to.obstacles || [];

@@ -189,16 +189,24 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
         </>
       )}
 
-      {(playerCar.boostTime > 0 || playerCar.hasShield) && (
+      {(playerCar.boostTime > 0 || playerCar.hasShield || playerCar.scale !== 1 || playerCar.isGhost || playerCar.hasMagnet || playerCar.hyperBoostTime > 0) && (
         <div
           className={`absolute top-1/2 left-1 md:left-6 -translate-y-1/2 flex flex-col gap-1 md:gap-2`}
         >
-          {playerCar.boostTime > 0 && (
+          {playerCar.hyperBoostTime > 0 && (
+            <div
+              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+              style={{ background: 'rgba(255,0,255,0.2)', borderColor: '#ff00ff', color: '#ff00ff', boxShadow: '0 0 15px #ff00ff66' }}
+            >
+              🌟 超级加速 {Math.ceil(playerCar.hyperBoostTime / 1000)}s
+            </div>
+          )}
+          {playerCar.boostTime > 0 && playerCar.hyperBoostTime <= 0 && (
             <div
               className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
               style={{ background: 'rgba(255,200,0,0.2)', borderColor: '#ffdd00', color: '#ffdd00', boxShadow: '0 0 15px #ffdd0066' }}
             >
-              ⚡ {Math.ceil(playerCar.boostTime / 1000)}s
+              ⚡ 加速 {Math.ceil(playerCar.boostTime / 1000)}s
             </div>
           )}
           {playerCar.hasShield && (
@@ -206,7 +214,39 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
               className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
               style={{ background: 'rgba(80,200,255,0.2)', borderColor: '#33ccff', color: '#33ccff', boxShadow: '0 0 15px #33ccff66' }}
             >
-              🛡 {Math.ceil(playerCar.shieldTime / 1000)}s
+              🛡 护盾 {Math.ceil(playerCar.shieldTime / 1000)}s
+            </div>
+          )}
+          {playerCar.scale < 1 && (
+            <div
+              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+              style={{ background: 'rgba(136,255,136,0.2)', borderColor: '#88ff88', color: '#88ff88', boxShadow: '0 0 15px #88ff8866' }}
+            >
+              🔽 缩小 {Math.ceil(playerCar.scaleTime / 1000)}s
+            </div>
+          )}
+          {playerCar.scale > 1 && (
+            <div
+              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+              style={{ background: 'rgba(255,136,68,0.2)', borderColor: '#ff8844', color: '#ff8844', boxShadow: '0 0 15px #ff884466' }}
+            >
+              🔼 巨型 {Math.ceil(playerCar.scaleTime / 1000)}s
+            </div>
+          )}
+          {playerCar.isGhost && (
+            <div
+              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+              style={{ background: 'rgba(170,136,255,0.2)', borderColor: '#aa88ff', color: '#aa88ff', boxShadow: '0 0 15px #aa88ff66' }}
+            >
+              👻 幽灵 {Math.ceil(playerCar.ghostTime / 1000)}s
+            </div>
+          )}
+          {playerCar.hasMagnet && (
+            <div
+              className="px-2 py-1 md:px-3 md:py-2 border-4 text-[8px] md:text-[10px]"
+              style={{ background: 'rgba(255,68,136,0.2)', borderColor: '#ff4488', color: '#ff4488', boxShadow: '0 0 15px #ff448866' }}
+            >
+              🧲 磁铁 {Math.ceil(playerCar.magnetTime / 1000)}s
             </div>
           )}
         </div>

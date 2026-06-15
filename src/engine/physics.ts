@@ -108,7 +108,12 @@ export const updateCarPhysics = (
     const effectiveFriction = car.friction * mod.frictionMul;
     const handling = car.handling * mod.gripMul;
 
-    if (car.boostTime > 0) {
+    if (car.hyperBoostTime > 0) {
+      car.hyperBoostTime -= dt;
+      car.boostTime = Math.max(car.boostTime, car.hyperBoostTime);
+      maxSpeed *= 2.0;
+      accel *= 2.5;
+    } else if (car.boostTime > 0) {
       car.boostTime -= dt;
       maxSpeed *= 1.5;
       accel *= 1.8;
@@ -116,6 +121,12 @@ export const updateCarPhysics = (
     if (car.shieldTime > 0) {
       car.shieldTime -= dt;
       if (car.shieldTime <= 0) car.hasShield = false;
+    }
+    if (car.scaleTime > 0) {
+      car.scaleTime -= dt;
+      if (car.scaleTime <= 0) {
+        car.scale = 1;
+      }
     }
 
     if (effectiveInput.up) {
@@ -205,27 +216,69 @@ export const nearestTrackIdx = (x: number, y: number, track: Track): number => {
 };
 
 export const checkCarCollision = (car: Car, other: Car): boolean => {
+  if (car.isGhost || other.isGhost) return false;
   const dx = car.x - other.x;
   const dy = car.y - other.y;
-  const r = 18;
-  return dx * dx + dy * dy < (r + r) * (r + r);
+  const r1 = 18 * car.scale;
+  const r2 = 18 * other.scale;
+  return dx * dx + dy * dy < (r1 + r2) * (r1 + r2);
 };
 
 export const resolveCarCollision = (car: Car, other: Car) => {
   const dx = car.x - other.x;
   const dy = car.y - other.y;
   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-  const overlap = 36 - dist;
+  const r1 = 18 * car.scale;
+  const r2 = 18 * other.scale;
+  const overlap = (r1 + r2) - dist;
   if (overlap > 0) {
     const nx = dx / dist;
     const ny = dy / dist;
-    car.x += nx * overlap * 0.5;
-    car.y += ny * overlap * 0.5;
-    other.x -= nx * overlap * 0.5;
-    other.y -= ny * overlap * 0.5;
-    const relSpeed = (car.speed - other.speed) * 0.3;
-    car.speed -= relSpeed * 0.5;
-    other.speed += relSpeed * 0.5;
+
+    const carIsGiant = car.scale > 1.2;
+    const otherIsGiant = other.scale > 1.2;
+    const carIsSmall = car.scale < 0.7;
+    const otherIsSmall = other.scale < 0.7;
+
+    if (carIsGiant && !otherIsGiant) {
+      other.x -= nx * overlap * 0.8;
+      other.y -= ny * overlap * 0.8;
+      other.speed *= 0.6;
+      other.spinTime = Math.max(other.spinTime, 400);
+      const relSpeed = (car.speed - other.speed) * 0.5;
+      other.speed += relSpeed * 0.8;
+    } else if (otherIsGiant && !carIsGiant) {
+      car.x += nx * overlap * 0.8;
+      car.y += ny * overlap * 0.8;
+      car.speed *= 0.6;
+      car.spinTime = Math.max(car.spinTime, 400);
+      const relSpeed = (other.speed - car.speed) * 0.5;
+      car.speed += relSpeed * 0.8;
+    } else if (carIsSmall && !otherIsSmall) {
+      car.x += nx * overlap * 0.7;
+      car.y += ny * overlap * 0.7;
+      other.x -= nx * overlap * 0.3;
+      other.y -= ny * overlap * 0.3;
+      const relSpeed = (car.speed - other.speed) * 0.2;
+      car.speed -= relSpeed * 0.3;
+      other.speed += relSpeed * 0.3;
+    } else if (otherIsSmall && !carIsSmall) {
+      car.x += nx * overlap * 0.3;
+      car.y += ny * overlap * 0.3;
+      other.x -= nx * overlap * 0.7;
+      other.y -= ny * overlap * 0.7;
+      const relSpeed = (car.speed - other.speed) * 0.2;
+      car.speed -= relSpeed * 0.3;
+      other.speed += relSpeed * 0.3;
+    } else {
+      car.x += nx * overlap * 0.5;
+      car.y += ny * overlap * 0.5;
+      other.x -= nx * overlap * 0.5;
+      other.y -= ny * overlap * 0.5;
+      const relSpeed = (car.speed - other.speed) * 0.3;
+      car.speed -= relSpeed * 0.5;
+      other.speed += relSpeed * 0.5;
+    }
   }
 };
 

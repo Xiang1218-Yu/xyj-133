@@ -41,6 +41,7 @@ interface GameState {
   selectedSkinP2: string | null;
   lastEarnedCoins: number;
   obstaclesEnabled: boolean;
+  wackyMode: boolean;
   setPhase: (p: GamePhase) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
@@ -99,6 +100,8 @@ interface GameState {
   applySkinToCustomization: (player: 1 | 2, skinId: string | null) => void;
   toggleObstacles: () => void;
   setObstaclesEnabled: (enabled: boolean) => void;
+  toggleWackyMode: () => void;
+  setWackyMode: (enabled: boolean) => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -161,6 +164,7 @@ const saveProgress = (state: GameState) => {
       selectedSkinP1: state.selectedSkinP1,
       selectedSkinP2: state.selectedSkinP2,
       obstaclesEnabled: state.obstaclesEnabled,
+      wackyMode: state.wackyMode,
     };
     localStorage.setItem('pixel_kart_progress', JSON.stringify(progress));
   } catch {
@@ -209,6 +213,7 @@ export const useGameStore = create<GameState>((set, get) => {
   selectedSkinP2: savedProgress.selectedSkinP2 ?? null,
   lastEarnedCoins: 0,
   obstaclesEnabled: savedProgress.obstaclesEnabled ?? true,
+  wackyMode: savedProgress.wackyMode ?? false,
 
   setPhase: (p) => set({ phase: p }),
   selectCarP1: (id) => set({ selectedCarIdP1: id, customizationP1: createDefaultCustomization(CAR_TEMPLATES[id]) }),
@@ -322,6 +327,8 @@ export const useGameStore = create<GameState>((set, get) => {
         currentDriftPoints: 0,
         maxDriftCombo: 0,
         driftComboTimer: 0,
+        gravityFlipped: false,
+        gravityFlipAnim: 0,
         aiTargetIdx: 0,
         aiSkill: isPlayerFlags[i] ? 0 : [0.8, 0.65, 0.75][i - 1] ?? 0.7,
         itemCooldown: 0,
@@ -657,6 +664,18 @@ export const useGameStore = create<GameState>((set, get) => {
 
   setObstaclesEnabled: (enabled) => set((state) => {
     const newState = { obstaclesEnabled: enabled };
+    saveProgress({ ...state, ...newState });
+    return newState;
+  }),
+
+  toggleWackyMode: () => set((state) => {
+    const newState = { wackyMode: !state.wackyMode };
+    saveProgress({ ...state, ...newState });
+    return newState;
+  }),
+
+  setWackyMode: (enabled) => set((state) => {
+    const newState = { wackyMode: enabled };
     saveProgress({ ...state, ...newState });
     return newState;
   }),

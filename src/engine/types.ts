@@ -32,6 +32,7 @@ export interface PlayerProgress {
   selectedSkinP1: string | null;
   selectedSkinP2: string | null;
   obstaclesEnabled: boolean;
+  wackyMode: boolean;
 }
 
 export type EditorTool = 'select' | 'add' | 'delete' | 'checkpoint' | 'boost' | 'item' | 'move';
@@ -120,6 +121,8 @@ export interface Car {
   currentDriftPoints: number;
   maxDriftCombo: number;
   driftComboTimer: number;
+  gravityFlipped: boolean;
+  gravityFlipAnim: number;
   aiTargetIdx: number;
   aiSkill: number;
   itemCooldown: number;
@@ -238,6 +241,15 @@ export interface EnvConfig {
   timeOfDay: TimeOfDay;
 }
 
+export interface WackyState {
+  enabled: boolean;
+  gravityDir: 1 | -1;
+  flipTimer: number;
+  warningTimer: number;
+  flipping: boolean;
+  flipAnimProgress: number;
+}
+
 export interface CarSnapshot {
   id: number;
   x: number;
@@ -257,6 +269,8 @@ export interface CarSnapshot {
   currentDriftPoints: number;
   maxDriftCombo: number;
   currentItem: ItemType | null;
+  gravityFlipped: boolean;
+  gravityFlipAnim: number;
 }
 
 export type ObstacleType = 'static' | 'sway' | 'patrol';

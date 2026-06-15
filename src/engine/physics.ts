@@ -1,5 +1,9 @@
-import type { Car, InputState, Track, EnvConfig, WeatherType, TimeOfDay } from './types';
+import type { Car, InputState, Track, EnvConfig, WeatherType, TimeOfDay, WackyState } from './types';
 import { clamp, pointToSegmentDist } from '../utils/math';
+
+export const GRAVITY_FLIP_INTERVAL = 6000;
+export const GRAVITY_WARNING_TIME = 1500;
+export const GRAVITY_FLIP_ANIM_DURATION = 400;
 
 export interface EnvPhysicsModifiers {
   frictionMul: number;
@@ -72,10 +76,27 @@ export const updateCarPhysics = (
   dt: number,
   track: Track,
   env: EnvConfig = { weather: 'clear', timeOfDay: 'day' },
+  wacky: WackyState | null = null,
 ) => {
   if (car.finished) return;
 
   const mod = getEnvModifiers(env);
+
+  let effectiveInput = input;
+  if (wacky && wacky.enabled && car.gravityFlipped) {
+    effectiveInput = {
+      up: input.down,
+      down: input.up,
+      left: input.right,
+      right: input.left,
+      space: input.space,
+      shift: input.shift,
+    };
+  }
+
+  if (car.gravityFlipAnim > 0) {
+    car.gravityFlipAnim = Math.max(0, car.gravityFlipAnim - dt);
+  }
 
   if (car.spinTime > 0) {
     car.spinTime -= dt;
@@ -97,10 +118,10 @@ export const updateCarPhysics = (
       if (car.shieldTime <= 0) car.hasShield = false;
     }
 
-    if (input.up) {
+    if (effectiveInput.up) {
       car.speed = clamp(car.speed + accel, -maxSpeed * 0.3, maxSpeed);
     }
-    if (input.down) {
+    if (effectiveInput.down) {
       car.speed = clamp(car.speed - accel * 0.6, -maxSpeed * 0.4, maxSpeed);
     }
 
@@ -111,21 +132,21 @@ export const updateCarPhysics = (
     let steerSpeed = handling * turnFactor * Math.sign(car.speed || 1);
 
     const driftMinSpeed = maxSpeed * 0.45;
-    const isDrifting = input.shift && absSpeed > driftMinSpeed && (input.left || input.right);
+    const isDrifting = effectiveInput.shift && absSpeed > driftMinSpeed && (effectiveInput.left || effectiveInput.right);
     car.drifting = isDrifting;
 
     const driftBoost = 1.4 + 0.6 * (1 - mod.driftResistanceMul);
     if (isDrifting) {
       steerSpeed *= driftBoost;
       const driftStep = 0.02 / Math.max(0.4, mod.driftResistanceMul);
-      car.driftAngle = clamp(car.driftAngle + (input.left ? -driftStep : driftStep), -0.6, 0.6);
+      car.driftAngle = clamp(car.driftAngle + (effectiveInput.left ? -driftStep : driftStep), -0.6, 0.6);
     } else {
       const driftReturn = 0.85 + 0.1 * mod.driftResistanceMul;
       car.driftAngle *= driftReturn;
     }
 
-    if (input.left) car.angle -= steerSpeed;
-    if (input.right) car.angle += steerSpeed;
+    if (effectiveInput.left) car.angle -= steerSpeed;
+    if (effectiveInput.right) car.angle += steerSpeed;
   }
 
   const moveAngle = car.angle + car.driftAngle;
@@ -206,4 +227,41 @@ export const resolveCarCollision = (car: Car, other: Car) => {
     car.speed -= relSpeed * 0.5;
     other.speed += relSpeed * 0.5;
   }
+};
+
+export const updateWackyGravity = (wacky: WackyState, dt: number, cars: Car[]): WackyState => {
+  if (!wacky.enabled) return wacky;
+
+  const next = { ...wacky };
+
+  if (next.flipping) {
+    next.flipAnimProgress = Math.min(1, next.flipAnimProgress + dt / GRAVITY_FLIP_ANIM_DURATION);
+    if (next.flipAnimProgress >= 1) {
+      next.flipping = false;
+      next.flipAnimProgress = 0;
+      next.gravityDir = (next.gravityDir * -1) as 1 | -1;
+      next.flipTimer = GRAVITY_FLIP_INTERVAL;
+      next.warningTimer = GRAVITY_WARNING_TIME;
+      for (const car of cars) {
+        car.gravityFlipped = next.gravityDir === -1;
+        car.gravityFlipAnim = 0;
+      }
+    }
+    return next;
+  }
+
+  next.flipTimer -= dt;
+  if (next.flipTimer <= GRAVITY_WARNING_TIME && next.warningTimer > 0) {
+    next.warningTimer -= dt;
+  }
+
+  if (next.flipTimer <= 0) {
+    next.flipping = true;
+    next.flipAnimProgress = 0;
+    for (const car of cars) {
+      car.gravityFlipAnim = GRAVITY_FLIP_ANIM_DURATION;
+    }
+  }
+
+  return next;
 };

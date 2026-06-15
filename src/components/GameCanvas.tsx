@@ -3,7 +3,7 @@ import { useGameStore, TOTAL_LAPS } from '../store/gameStore';
 import { Renderer } from '../engine/renderer';
 import type {
   Car, TireMark, Particle, ItemBoxInstance, BananaInstance, MissileInstance, Camera, InputState,
-  GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay, Obstacle,
+  GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay, Obstacle, WackyState,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
 import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCustom } from '../engine/track';
@@ -11,6 +11,7 @@ import type { Track } from '../engine/types';
 import { CAR_TEMPLATES, getCarTemplate } from '../engine/cars';
 import {
   updateCarPhysics, nearestTrackIdx, checkCarCollision, resolveCarCollision, isInBoostZone,
+  updateWackyGravity, GRAVITY_FLIP_INTERVAL, GRAVITY_WARNING_TIME,
 } from '../engine/physics';
 import { updateAI } from '../engine/ai';
 import {
@@ -44,6 +45,7 @@ export default function GameCanvas() {
   const useCustomTrack = useGameStore((s) => s.useCustomTrack);
   const customTrack = useGameStore((s) => s.customTrack);
   const obstaclesEnabled = useGameStore((s) => s.obstaclesEnabled);
+  const wackyMode = useGameStore((s) => s.wackyMode);
   const activeTrack: Track = useCustomTrack ? buildTrackFromCustom(customTrack) : MAIN_TRACK;
 
   const stateRef = useRef<{
@@ -75,6 +77,7 @@ export default function GameCanvas() {
     env: EnvConfig;
     phase: string;
     obstaclesEnabled: boolean;
+    wacky: WackyState;
   } | null>(null);
 
   if (!stateRef.current) {
@@ -110,6 +113,7 @@ export default function GameCanvas() {
       env: { weather: 'clear', timeOfDay: 'day' },
       phase: 'menu',
       obstaclesEnabled: true,
+      wacky: { enabled: false, gravityDir: 1, flipTimer: GRAVITY_FLIP_INTERVAL, warningTimer: GRAVITY_WARNING_TIME, flipping: false, flipAnimProgress: 0 },
     };
   }
 
@@ -127,6 +131,7 @@ export default function GameCanvas() {
     st.env = { weather: weather as WeatherType, timeOfDay: timeOfDay as TimeOfDay };
     st.phase = phase;
     st.obstaclesEnabled = obstaclesEnabled;
+    st.wacky = { ...st.wacky, enabled: wackyMode };
 
     if (phase === 'replay' && replayData && (!st.replayPlayer || st.replayData !== replayData)) {
       st.replayPlayer = new ReplayPlayer(replayData);
@@ -254,6 +259,8 @@ export default function GameCanvas() {
           currentDriftPoints: 0,
           maxDriftCombo: 0,
           driftComboTimer: 0,
+          gravityFlipped: false,
+          gravityFlipAnim: 0,
           aiTargetIdx: 0,
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
@@ -268,6 +275,14 @@ export default function GameCanvas() {
       st.obstacles = st.obstaclesEnabled ? createObstacles(activeTrack) : [];
       st.raceFinished = false;
       st.rankings = [];
+      st.wacky = {
+        enabled: wackyMode,
+        gravityDir: 1,
+        flipTimer: GRAVITY_FLIP_INTERVAL,
+        warningTimer: GRAVITY_WARNING_TIME,
+        flipping: false,
+        flipAnimProgress: 0,
+      };
       st.cameras.forEach((c) => { c.shake = 0; });
 
       if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
@@ -366,6 +381,9 @@ export default function GameCanvas() {
       renderer.drawTimeTint();
       renderer.drawVignette();
       renderer.drawScanlines(ts);
+      if (st.wacky.enabled) {
+        renderer.drawWackyGravityIndicator(st.wacky, ts);
+      }
     };
 
     const getViewports = (): { x: number; y: number; width: number; height: number }[] => {
@@ -463,7 +481,7 @@ export default function GameCanvas() {
 
           if (car.itemCooldown > 0) car.itemCooldown -= dt;
 
-          updateCarPhysics(car, inp, dt, activeTrack, st.env);
+          updateCarPhysics(car, inp, dt, activeTrack, st.env, st.wacky.enabled ? st.wacky : null);
 
           if (car.drifting && car.tireMarkTimer > 40) {
             car.tireMarkTimer = 0;
@@ -557,6 +575,24 @@ export default function GameCanvas() {
           for (let j = i + 1; j < st.cars.length; j++) {
             if (checkCarCollision(st.cars[i], st.cars[j])) {
               resolveCarCollision(st.cars[i], st.cars[j]);
+            }
+          }
+        }
+
+        if (st.wacky.enabled) {
+          const prevWacky = st.wacky;
+          st.wacky = updateWackyGravity(st.wacky, dt, st.cars);
+          if (st.wacky.flipping && !prevWacky.flipping) {
+            st.cameras.forEach((c) => { c.shake = 12; });
+            for (const car of st.cars) {
+              st.particles.push({
+                x: car.x + (Math.random() - 0.5) * 20,
+                y: car.y + (Math.random() - 0.5) * 20,
+                vx: (Math.random() - 0.5) * 3,
+                vy: (Math.random() - 0.5) * 3,
+                life: 600, maxLife: 600,
+                color: '#ff00ff', size: 4,
+              });
             }
           }
         }
@@ -700,7 +736,7 @@ export default function GameCanvas() {
       window.removeEventListener('resize', resize);
       input.destroy();
     };
-  }, [selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, splitLayout, weather, timeOfDay, replayData]);
+  }, [selectedCarIdP1, selectedCarIdP2, gameMode, playerCount, splitLayout, weather, timeOfDay, replayData, wackyMode]);
 
   useEffect(() => {
     if (phase === 'countdown' && stateRef.current?.initialized) {
@@ -812,6 +848,8 @@ export default function GameCanvas() {
           currentDriftPoints: 0,
           maxDriftCombo: 0,
           driftComboTimer: 0,
+          gravityFlipped: false,
+          gravityFlipAnim: 0,
           aiTargetIdx: 0,
           aiSkill: isPlayerFlags[i] ? 0 : aiSkills[i] ?? 0.7,
           itemCooldown: 0,
@@ -826,6 +864,14 @@ export default function GameCanvas() {
       st.obstacles = st.obstaclesEnabled ? createObstacles(activeTrack) : [];
       st.raceFinished = false;
       st.rankings = [];
+      st.wacky = {
+        enabled: wackyMode,
+        gravityDir: 1,
+        flipTimer: GRAVITY_FLIP_INTERVAL,
+        warningTimer: GRAVITY_WARNING_TIME,
+        flipping: false,
+        flipAnimProgress: 0,
+      };
       st.cameras.forEach((c) => { c.shake = 0; });
 
       if (st.gameMode !== 'timeattack' && st.gameMode !== 'drift') {
@@ -853,7 +899,7 @@ export default function GameCanvas() {
       st.countdownTimer = 0;
       setCountdown(3);
     }
-  }, [phase === 'countdown' ? 'countdown-start' : '', gameMode, playerCount, splitLayout, selectedCarIdP1, selectedCarIdP2, weather, timeOfDay]);
+  }, [phase === 'countdown' ? 'countdown-start' : '', gameMode, playerCount, splitLayout, selectedCarIdP1, selectedCarIdP2, weather, timeOfDay, wackyMode]);
 
   void countdown;
   void startReplay;

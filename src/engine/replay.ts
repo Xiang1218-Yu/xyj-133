@@ -68,6 +68,8 @@ export class ReplayRecorder {
       currentDriftPoints: c.currentDriftPoints,
       maxDriftCombo: c.maxDriftCombo,
       currentItem: c.currentItem,
+      gravityFlipped: c.gravityFlipped,
+      gravityFlipAnim: c.gravityFlipAnim,
     }));
 
     const recentParticles = particles
@@ -346,6 +348,8 @@ export class ReplayPlayer {
         car.currentDriftPoints = snap.currentDriftPoints;
         car.maxDriftCombo = snap.maxDriftCombo;
         car.currentItem = snap.currentItem;
+        car.gravityFlipped = snap.gravityFlipped;
+        car.gravityFlipAnim = snap.gravityFlipAnim;
       }
     }
 
@@ -392,6 +396,8 @@ export class ReplayPlayer {
       car.currentDriftPoints = lerp(snapFrom.currentDriftPoints, snapTo.currentDriftPoints, t);
       car.maxDriftCombo = snapTo.maxDriftCombo;
       car.currentItem = snapTo.currentItem;
+      car.gravityFlipped = snapTo.gravityFlipped;
+      car.gravityFlipAnim = snapTo.gravityFlipAnim;
     }
 
     this.currentParticles = to.particles.map((p) => ({ ...p }));

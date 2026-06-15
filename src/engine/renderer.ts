@@ -1,7 +1,7 @@
 import type {
   Car, Track, TireMark, Particle, ItemBoxInstance,
   BananaInstance, MissileInstance, Camera, ItemType,
-  WeatherType, TimeOfDay, EnvConfig, Obstacle,
+  WeatherType, TimeOfDay, EnvConfig, Obstacle, WackyState,
 } from './types';
 import { obstacleHitFlash } from './obstacles';
 import { lerp } from '../utils/math';
@@ -608,6 +608,7 @@ export class Renderer {
       ctx.save();
       ctx.translate(car.x, car.y);
       ctx.rotate(car.angle);
+      if (car.gravityFlipped) ctx.scale(1, -1);
       const hlAlpha = timeLight.headlightAlpha * 0.6;
       const grad = ctx.createRadialGradient(20, 0, 8, 20, 0, 180);
       grad.addColorStop(0, `rgba(255,240,180,${hlAlpha})`);
@@ -626,7 +627,16 @@ export class Renderer {
 
     ctx.save();
     ctx.translate(car.x, car.y);
-    ctx.rotate(car.angle);
+
+    if (car.gravityFlipAnim > 0) {
+      const flipProgress = 1 - (car.gravityFlipAnim / 400);
+      const scaleY = Math.abs(Math.cos(flipProgress * Math.PI));
+      ctx.rotate(car.angle);
+      ctx.scale(1, Math.max(0.05, scaleY));
+    } else {
+      ctx.rotate(car.angle);
+      if (car.gravityFlipped) ctx.scale(1, -1);
+    }
 
     if (car.hasShield) {
       const pulse = 0.7 + 0.3 * Math.sin(time * 0.01);
@@ -747,18 +757,38 @@ export class Renderer {
 
     if (car.isPlayer && !car.finished) {
       ctx.save();
-      ctx.translate(car.x, car.y - 32);
+      const arrowY = car.gravityFlipped ? 32 : -32;
+      ctx.translate(car.x, car.y + arrowY);
       const t = Math.sin(time * 0.01) * 2;
-      ctx.fillStyle = '#ffdd00';
+      ctx.fillStyle = car.gravityFlipped ? '#ff00ff' : '#ffdd00';
       ctx.beginPath();
-      ctx.moveTo(-8, -8 + t);
-      ctx.lineTo(0, 0);
-      ctx.lineTo(8, -8 + t);
+      if (car.gravityFlipped) {
+        ctx.moveTo(-8, 8 - t);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(8, 8 - t);
+      } else {
+        ctx.moveTo(-8, -8 + t);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(8, -8 + t);
+      }
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 1;
       ctx.stroke();
+      ctx.restore();
+    }
+
+    if (car.gravityFlipped) {
+      ctx.save();
+      ctx.translate(car.x, car.y + 24);
+      ctx.fillStyle = '#ff00ff';
+      ctx.font = 'bold 7px "Press Start 2P", "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 0.008);
+      ctx.fillText('CEILING', 0, 0);
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
   }
@@ -929,6 +959,56 @@ export class Renderer {
       ctx.strokeText('GO!', 0, 0);
       ctx.fillText('GO!', 0, 0);
     }
+    ctx.restore();
+  }
+
+  drawWackyGravityIndicator(wacky: WackyState, time: number) {
+    const ctx = this.ctx;
+    const w = this.viewportW;
+    const h = this.viewportH;
+
+    ctx.save();
+
+    const isFlipped = wacky.gravityDir === -1;
+    const isWarning = !wacky.flipping && wacky.flipTimer <= 1500 && wacky.flipTimer > 0;
+    const isFlipping = wacky.flipping;
+
+    const indicatorX = w / 2;
+    const indicatorY = 40;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(indicatorX - 60, indicatorY - 16, 120, 32);
+    ctx.strokeStyle = isFlipped ? '#ff00ff' : '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(indicatorX - 60, indicatorY - 16, 120, 32);
+
+    ctx.fillStyle = isFlipped ? '#ff00ff' : '#00ff88';
+    ctx.font = 'bold 10px "Press Start 2P", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const arrow = isFlipped ? '▲' : '▼';
+    const label = isFlipped ? 'CEILING' : 'FLOOR';
+    ctx.fillText(`${arrow} ${label}`, indicatorX, indicatorY);
+
+    if (isWarning) {
+      const blink = Math.sin(time * 0.02) > 0;
+      if (blink) {
+        ctx.fillStyle = '#ff8800';
+        ctx.font = 'bold 14px "Press Start 2P", "Courier New", monospace';
+        ctx.fillText('⚠ FLIP!', indicatorX, indicatorY + 28);
+      }
+
+      ctx.fillStyle = 'rgba(255,136,0,0.15)';
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    if (isFlipping) {
+      const flash = Math.sin(time * 0.03);
+      ctx.fillStyle = `rgba(255,0,255,${0.1 + 0.1 * flash})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
     ctx.restore();
   }
 }

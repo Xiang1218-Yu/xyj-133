@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
 import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle, Zap } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -34,6 +34,8 @@ export default function MainMenu() {
   const getUpgradedCarStats = useGameStore((s) => s.getUpgradedCarStats);
   const obstaclesEnabled = useGameStore((s) => s.obstaclesEnabled);
   const toggleObstacles = useGameStore((s) => s.toggleObstacles);
+  const wackyMode = useGameStore((s) => s.wackyMode);
+  const toggleWackyMode = useGameStore((s) => s.toggleWackyMode);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -616,6 +618,34 @@ export default function MainMenu() {
                 </div>
               </div>
               {obstaclesEnabled && <Check className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#00ff88' }} />}
+            </div>
+          </button>
+        </div>
+
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-2 md:mb-3" style={{ color: '#ff00ff' }}>
+            <span className="text-[10px] md:text-xs tracking-widest">WACKY 搞怪模式</span>
+          </div>
+          <button
+            onClick={toggleWackyMode}
+            className={`w-full p-3 md:p-4 border-4 transition-all ${wackyMode ? '-translate-y-0.5' : ''}`}
+            style={{
+              background: wackyMode ? '#1a1a3a' : '#12122a',
+              borderColor: wackyMode ? '#ff00ff' : '#333366',
+              boxShadow: wackyMode ? '0 0 20px #ff00ff44, 4px 4px 0 #000000' : '4px 4px 0 #000000',
+            }}
+          >
+            <div className="flex items-center justify-center gap-3 md:gap-4">
+              <Zap className="w-6 h-6 md:w-7 md:h-7" style={{ color: wackyMode ? '#ff00ff' : '#8888aa' }} />
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-xs md:text-sm tracking-wider" style={{ color: wackyMode ? '#ff00ff' : '#ccccdd' }}>
+                  {wackyMode ? '搞怪模式已开启' : '搞怪模式已关闭'}
+                </div>
+                <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                  {wackyMode ? '重力周期反转 · 天花板行驶 · 操控反转' : '正常物理规则'}
+                </div>
+              </div>
+              {wackyMode && <Check className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#ff00ff' }} />}
             </div>
           </button>
         </div>

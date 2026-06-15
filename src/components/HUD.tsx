@@ -12,9 +12,10 @@ interface PlayerHUDProps {
   splitLayout: 'horizontal' | 'vertical';
   viewportIdx: number;
   playerCount: number;
+  wackyMode: boolean;
 }
 
-const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLayout, viewportIdx, playerCount }: PlayerHUDProps) => {
+const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLayout, viewportIdx, playerCount, wackyMode }: PlayerHUDProps) => {
   const isTimeAttack = gameMode === 'timeattack';
   const isDrift = gameMode === 'drift';
   const isSplit = playerCount === 2;
@@ -210,6 +211,39 @@ const PlayerHUD = ({ playerCar, allCars, totalLaps, raceTime, gameMode, splitLay
           )}
         </div>
       )}
+
+      {wackyMode && (
+        <div
+          className="absolute bottom-1 left-1/2 -translate-x-1/2 md:bottom-3"
+        >
+          <div
+            className="px-3 py-1 md:px-4 md:py-2 border-4 flex items-center gap-2"
+            style={{
+              background: playerCar.gravityFlipped ? 'rgba(255,0,255,0.2)' : 'rgba(0,255,136,0.15)',
+              borderColor: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88',
+              boxShadow: playerCar.gravityFlipped ? '0 0 15px #ff00ff66' : '0 0 10px #00ff8844',
+            }}
+          >
+            <span style={{ color: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88', fontSize: '1.2em' }}>
+              {playerCar.gravityFlipped ? '▲' : '▼'}
+            </span>
+            <span
+              className="text-[8px] md:text-[10px] tracking-wider"
+              style={{ color: playerCar.gravityFlipped ? '#ff00ff' : '#00ff88' }}
+            >
+              {playerCar.gravityFlipped ? 'CEILING' : 'FLOOR'}
+            </span>
+            {playerCar.gravityFlipped && (
+              <span
+                className="text-[7px] md:text-[8px]"
+                style={{ color: '#ff8888' }}
+              >
+                操控反转!
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -221,6 +255,7 @@ export default function HUD() {
   const gameMode = useGameStore((s) => s.gameMode);
   const playerCount = useGameStore((s) => s.playerCount);
   const splitLayout = useGameStore((s) => s.splitLayout);
+  const wackyMode = useGameStore((s) => s.wackyMode);
 
   const playerCars = cars.filter((c) => c.isPlayer);
   if (playerCars.length === 0) return null;
@@ -238,6 +273,7 @@ export default function HUD() {
           splitLayout={splitLayout}
           viewportIdx={idx}
           playerCount={playerCount}
+          wackyMode={wackyMode}
         />
       ))}
     </div>

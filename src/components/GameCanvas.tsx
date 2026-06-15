@@ -3,7 +3,7 @@ import { useGameStore, TOTAL_LAPS } from '../store/gameStore';
 import { Renderer } from '../engine/renderer';
 import type {
   Car, TireMark, Particle, ItemBoxInstance, BananaInstance, MissileInstance, Camera, InputState,
-  GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay,
+  GameMode, SplitScreenLayout, EnvConfig, ReplayData, WeatherType, TimeOfDay, Obstacle,
 } from '../engine/types';
 import { InputManager } from '../engine/input';
 import { MAIN_TRACK, getStartPositions, getItemBoxPositions, buildTrackFromCustom } from '../engine/track';
@@ -17,6 +17,7 @@ import {
   createItemBoxes, updateItemBoxes, tryCollectItemBox, activateItem,
   updateBananas, updateMissiles, updateParticles,
 } from '../engine/items';
+import { createObstacles, updateObstacles, updateObstacleCollisions } from '../engine/obstacles';
 import { lerp, clamp } from '../utils/math';
 import { ReplayRecorder, ReplayPlayer } from '../engine/replay';
 
@@ -51,6 +52,7 @@ export default function GameCanvas() {
     itemBoxes: ItemBoxInstance[];
     bananas: BananaInstance[];
     missiles: MissileInstance[];
+    obstacles: Obstacle[];
     cameras: Camera[];
     renderer: Renderer | null;
     input: InputManager | null;
@@ -81,6 +83,7 @@ export default function GameCanvas() {
       itemBoxes: [],
       bananas: [],
       missiles: [],
+      obstacles: [],
       cameras: [
         { x: 1000, y: 800, zoom: 1, shake: 0 },
         { x: 1000, y: 800, zoom: 1, shake: 0 },
@@ -248,6 +251,7 @@ export default function GameCanvas() {
       st.particles = [];
       st.bananas = [];
       st.missiles = [];
+      st.obstacles = createObstacles(activeTrack);
       st.raceFinished = false;
       st.rankings = [];
       st.cameras.forEach((c) => { c.shake = 0; });
@@ -334,6 +338,7 @@ export default function GameCanvas() {
         renderer.drawBananas(st.bananas);
         renderer.drawMissiles(st.missiles);
       }
+      renderer.drawObstacles(st.obstacles, ts);
       const sortedForDraw = [...st.cars].sort((a, b) => a.y - b.y);
       for (const car of sortedForDraw) {
         renderer.drawCar(car, ts);
@@ -404,6 +409,7 @@ export default function GameCanvas() {
         st.tireMarks = rp.getTireMarks();
         st.bananas = rp.getBananas();
         st.missiles = rp.getMissiles();
+        st.obstacles = rp.getObstacles();
         st.gameMode = rp.getGameMode();
         st.playerCount = rp.getPlayerCount();
         const rt = rp.getCurrentRaceTime();
@@ -596,6 +602,8 @@ export default function GameCanvas() {
           updateBananas(st.bananas, st.cars, st.particles, dt);
           updateMissiles(st.missiles, st.cars, st.particles, dt);
         }
+        updateObstacles(st.obstacles, activeTrack, dt, ts);
+        updateObstacleCollisions(st.obstacles, st.cars, st.particles, st.cameras);
         updateParticles(st.particles, dt);
 
         for (let i = st.tireMarks.length - 1; i >= 0; i--) {
@@ -606,7 +614,7 @@ export default function GameCanvas() {
         const elapsedRec = ts - st.raceStartTime;
         st.recorder.record(
           st.cars, st.particles, st.tireMarks,
-          st.bananas, st.missiles, elapsedRec, ts,
+          st.bananas, st.missiles, st.obstacles, elapsedRec, ts,
         );
       }
 
@@ -797,6 +805,7 @@ export default function GameCanvas() {
       st.particles = [];
       st.bananas = [];
       st.missiles = [];
+      st.obstacles = createObstacles(activeTrack);
       st.raceFinished = false;
       st.rankings = [];
       st.cameras.forEach((c) => { c.shake = 0; });

@@ -1,6 +1,6 @@
 import type {
   Car, CarSnapshot, Particle, TireMark, BananaInstance, MissileInstance,
-  ReplayFrame, ReplayData, ReplayViewMode, GameMode, EnvConfig, Camera,
+  ReplayFrame, ReplayData, ReplayViewMode, GameMode, EnvConfig, Camera, Obstacle,
 } from './types';
 import { MAIN_TRACK } from './track';
 import { lerp, clamp } from '../utils/math';
@@ -39,6 +39,7 @@ export class ReplayRecorder {
     tireMarks: TireMark[],
     bananas: BananaInstance[],
     missiles: MissileInstance[],
+    obstacles: Obstacle[],
     raceTime: number,
     ts: number,
   ) {
@@ -87,6 +88,7 @@ export class ReplayRecorder {
       tireMarks: recentTireMarks,
       bananas: bananas.map((b) => ({ ...b })),
       missiles: missiles.map((m) => ({ ...m })),
+      obstacles: obstacles.map((o) => ({ ...o })),
     };
 
     this.frames.push(frame);
@@ -126,6 +128,7 @@ export class ReplayPlayer {
   private currentTireMarks: TireMark[] = [];
   private currentBananas: BananaInstance[] = [];
   private currentMissiles: MissileInstance[] = [];
+  private currentObstacles: Obstacle[] = [];
   private currentRaceTime = 0;
   private onFrameChange?: (idx: number) => void;
 
@@ -189,6 +192,10 @@ export class ReplayPlayer {
 
   getMissiles() {
     return this.currentMissiles;
+  }
+
+  getObstacles() {
+    return this.currentObstacles;
   }
 
   isPlaying() {
@@ -346,6 +353,7 @@ export class ReplayPlayer {
     this.currentTireMarks = frame.tireMarks.map((t) => ({ ...t }));
     this.currentBananas = frame.bananas.map((b) => ({ ...b }));
     this.currentMissiles = frame.missiles.map((m) => ({ ...m }));
+    this.currentObstacles = (frame.obstacles || []).map((o) => ({ ...o }));
   }
 
   private interpolateFrame(fromIdx: number, toIdx: number, t: number) {
@@ -390,6 +398,20 @@ export class ReplayPlayer {
     this.currentTireMarks = to.tireMarks.map((tm) => ({ ...tm }));
     this.currentBananas = to.bananas.map((b) => ({ ...b }));
     this.currentMissiles = to.missiles.map((m) => ({ ...m }));
+
+    const fromObs = from.obstacles || [];
+    const toObs = to.obstacles || [];
+    this.currentObstacles = toObs.map((toO, i) => {
+      const fromO = fromObs[i];
+      if (!fromO) return { ...toO };
+      return {
+        ...toO,
+        x: lerp(fromO.x, toO.x, t),
+        y: lerp(fromO.y, toO.y, t),
+        angle: lerp(fromO.angle, toO.angle, t),
+        hitFlash: lerp(fromO.hitFlash, toO.hitFlash, t),
+      };
+    });
   }
 
   tick(ts: number) {

@@ -1,8 +1,9 @@
 import type {
   Car, Track, TireMark, Particle, ItemBoxInstance,
   BananaInstance, MissileInstance, Camera, ItemType,
-  WeatherType, TimeOfDay, EnvConfig,
+  WeatherType, TimeOfDay, EnvConfig, Obstacle,
 } from './types';
+import { obstacleHitFlash } from './obstacles';
 import { lerp } from '../utils/math';
 
 const GRASS_COLOR = '#1a4a2a';
@@ -520,6 +521,76 @@ export class Renderer {
       ctx.fillStyle = '#222222';
       ctx.fillRect(-10, -7, 4, 4);
       ctx.fillRect(-10, 3, 4, 4);
+      ctx.restore();
+    }
+  }
+
+  drawObstacles(obstacles: Obstacle[], time: number) {
+    const ctx = this.ctx;
+    for (const obs of obstacles) {
+      if (!obs.active) continue;
+      ctx.save();
+      ctx.translate(obs.x, obs.y);
+      ctx.rotate(obs.angle);
+
+      const w = obs.width;
+      const h = obs.height;
+      const hf = obstacleHitFlash(obs);
+
+      let baseColor: string, darkColor: string, accentColor: string;
+      switch (obs.type) {
+        case 'static':
+          baseColor = '#666677';
+          darkColor = '#444455';
+          accentColor = '#888899';
+          break;
+        case 'sway':
+          baseColor = '#cc5533';
+          darkColor = '#883322';
+          accentColor = '#ff7744';
+          break;
+        case 'patrol':
+          baseColor = '#3355cc';
+          darkColor = '#223388';
+          accentColor = '#5577ff';
+          break;
+      }
+
+      if (hf > 0.01) {
+        const flash = Math.floor(hf * 255).toString(16).padStart(2, '0');
+        baseColor = `#${flash}${flash}ff`;
+      }
+
+      ctx.fillStyle = baseColor;
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+
+      ctx.fillStyle = darkColor;
+      ctx.fillRect(-w / 2, -h / 2, w, 3);
+      ctx.fillRect(-w / 2, h / 2 - 3, w, 3);
+      ctx.fillRect(-w / 2, -h / 2, 3, h);
+      ctx.fillRect(w / 2 - 3, -h / 2, 3, h);
+
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, 3);
+
+      if (obs.type === 'patrol') {
+        const blink = 0.5 + 0.5 * Math.sin(time * 0.008 + obs.id * 1.3);
+        ctx.fillStyle = `rgba(255,${Math.floor(80 + 100 * blink)},80,${0.6 + 0.4 * blink})`;
+        ctx.fillRect(-w / 2 + 6, -h / 2 + 6, 4, 4);
+        ctx.fillRect(w / 2 - 10, -h / 2 + 6, 4, 4);
+        ctx.fillRect(-w / 2 + 6, h / 2 - 10, 4, 4);
+        ctx.fillRect(w / 2 - 10, h / 2 - 10, 4, 4);
+      } else if (obs.type === 'sway') {
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillRect(-w / 2 + 5, -3, w - 10, 6);
+      } else {
+        const stripes = Math.floor(w / 6);
+        for (let s = 0; s < stripes; s++) {
+          ctx.fillStyle = s % 2 === 0 ? '#ffdd00' : '#111111';
+          ctx.fillRect(-w / 2 + 3 + s * 6, -4, 5, 8);
+        }
+      }
+
       ctx.restore();
     }
   }

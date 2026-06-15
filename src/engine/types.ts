@@ -225,6 +225,31 @@ export interface CarSnapshot {
   currentItem: ItemType | null;
 }
 
+export type ObstacleType = 'static' | 'sway' | 'patrol';
+
+export interface Obstacle {
+  id: number;
+  type: ObstacleType;
+  x: number;
+  y: number;
+  angle: number;
+  width: number;
+  height: number;
+  speed: number;
+  baseX: number;
+  baseY: number;
+  baseAngle: number;
+  swayRange: number;
+  swayPhase: number;
+  swaySpeed: number;
+  patrolStartIdx: number;
+  patrolEndIdx: number;
+  patrolDir: number;
+  trackProgress: number;
+  active: boolean;
+  hitFlash: number;
+}
+
 export interface ReplayFrame {
   frameIndex: number;
   raceTime: number;
@@ -233,6 +258,7 @@ export interface ReplayFrame {
   tireMarks: TireMark[];
   bananas: BananaInstance[];
   missiles: MissileInstance[];
+  obstacles: Obstacle[];
 }
 
 export interface ReplayData {

@@ -43,6 +43,7 @@ export default function GameCanvas() {
   const setReplayFrameIndex = useGameStore((s) => s.setReplayFrameIndex);
   const useCustomTrack = useGameStore((s) => s.useCustomTrack);
   const customTrack = useGameStore((s) => s.customTrack);
+  const obstaclesEnabled = useGameStore((s) => s.obstaclesEnabled);
   const activeTrack: Track = useCustomTrack ? buildTrackFromCustom(customTrack) : MAIN_TRACK;
 
   const stateRef = useRef<{
@@ -73,6 +74,7 @@ export default function GameCanvas() {
     replayData: ReplayData | null;
     env: EnvConfig;
     phase: string;
+    obstaclesEnabled: boolean;
   } | null>(null);
 
   if (!stateRef.current) {
@@ -107,6 +109,7 @@ export default function GameCanvas() {
       replayData: null,
       env: { weather: 'clear', timeOfDay: 'day' },
       phase: 'menu',
+      obstaclesEnabled: true,
     };
   }
 
@@ -123,6 +126,7 @@ export default function GameCanvas() {
     st.splitLayout = splitLayout;
     st.env = { weather: weather as WeatherType, timeOfDay: timeOfDay as TimeOfDay };
     st.phase = phase;
+    st.obstaclesEnabled = obstaclesEnabled;
 
     if (phase === 'replay' && replayData && (!st.replayPlayer || st.replayData !== replayData)) {
       st.replayPlayer = new ReplayPlayer(replayData);
@@ -261,7 +265,7 @@ export default function GameCanvas() {
       st.particles = [];
       st.bananas = [];
       st.missiles = [];
-      st.obstacles = createObstacles(activeTrack);
+      st.obstacles = st.obstaclesEnabled ? createObstacles(activeTrack) : [];
       st.raceFinished = false;
       st.rankings = [];
       st.cameras.forEach((c) => { c.shake = 0; });
@@ -348,7 +352,9 @@ export default function GameCanvas() {
         renderer.drawBananas(st.bananas);
         renderer.drawMissiles(st.missiles);
       }
-      renderer.drawObstacles(st.obstacles, ts);
+      if (st.obstaclesEnabled) {
+        renderer.drawObstacles(st.obstacles, ts);
+      }
       const sortedForDraw = [...st.cars].sort((a, b) => a.y - b.y);
       for (const car of sortedForDraw) {
         renderer.drawCar(car, ts);
@@ -612,8 +618,10 @@ export default function GameCanvas() {
           updateBananas(st.bananas, st.cars, st.particles, dt);
           updateMissiles(st.missiles, st.cars, st.particles, dt);
         }
-        updateObstacles(st.obstacles, activeTrack, dt, ts);
-        updateObstacleCollisions(st.obstacles, st.cars, st.particles, st.cameras);
+        if (st.obstaclesEnabled) {
+          updateObstacles(st.obstacles, activeTrack, dt, ts);
+          updateObstacleCollisions(st.obstacles, st.cars, st.particles, st.cameras);
+        }
         updateParticles(st.particles, dt);
 
         for (let i = st.tireMarks.length - 1; i >= 0; i--) {
@@ -815,7 +823,7 @@ export default function GameCanvas() {
       st.particles = [];
       st.bananas = [];
       st.missiles = [];
-      st.obstacles = createObstacles(activeTrack);
+      st.obstacles = st.obstaclesEnabled ? createObstacles(activeTrack) : [];
       st.raceFinished = false;
       st.rankings = [];
       st.cameras.forEach((c) => { c.shake = 0; });

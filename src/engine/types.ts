@@ -31,6 +31,7 @@ export interface PlayerProgress {
   ownedSkins: string[];
   selectedSkinP1: string | null;
   selectedSkinP2: string | null;
+  obstaclesEnabled: boolean;
 }
 
 export type EditorTool = 'select' | 'add' | 'delete' | 'checkpoint' | 'boost' | 'item' | 'move';

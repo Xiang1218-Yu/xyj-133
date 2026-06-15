@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { CAR_TEMPLATES } from '../engine/cars';
 import type { GameMode, WeatherType, TimeOfDay, CarCustomization, StripePattern } from '../engine/types';
-import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Gamepad2, Users, Timer, Trophy, Monitor, Sun, CloudSnow, CloudRain, Moon, Sunset, Sunrise, CloudFog, Sparkles, Palette, Pencil, Check, Coins, ShoppingBag, AlertTriangle } from 'lucide-react';
 
 export default function MainMenu() {
   const selectedCarIdP1 = useGameStore((s) => s.selectedCarIdP1);
@@ -32,6 +32,8 @@ export default function MainMenu() {
   const openShop = useGameStore((s) => s.openShop);
   const upgrades = useGameStore((s) => s.upgrades);
   const getUpgradedCarStats = useGameStore((s) => s.getUpgradedCarStats);
+  const obstaclesEnabled = useGameStore((s) => s.obstaclesEnabled);
+  const toggleObstacles = useGameStore((s) => s.toggleObstacles);
 
   const weatherOptions: { id: WeatherType; label: string; desc: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; effect: string }[] = [
     { id: 'clear', label: '晴天', desc: '晴朗干燥', icon: Sun, color: '#ffdd00', effect: '标准手感' },
@@ -588,6 +590,34 @@ export default function MainMenu() {
               );
             })}
           </div>
+        </div>
+
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-2 md:mb-3" style={{ color: '#ffaa33' }}>
+            <span className="text-[10px] md:text-xs tracking-widest">OBSTACLES 障碍物</span>
+          </div>
+          <button
+            onClick={toggleObstacles}
+            className={`w-full p-3 md:p-4 border-4 transition-all ${obstaclesEnabled ? '-translate-y-0.5' : ''}`}
+            style={{
+              background: obstaclesEnabled ? '#1a1a3a' : '#12122a',
+              borderColor: obstaclesEnabled ? '#ffaa33' : '#333366',
+              boxShadow: obstaclesEnabled ? '0 0 20px #ffaa3344, 4px 4px 0 #000000' : '4px 4px 0 #000000',
+            }}
+          >
+            <div className="flex items-center justify-center gap-3 md:gap-4">
+              <AlertTriangle className="w-6 h-6 md:w-7 md:h-7" style={{ color: obstaclesEnabled ? '#ffaa33' : '#8888aa' }} />
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-xs md:text-sm tracking-wider" style={{ color: obstaclesEnabled ? '#ffaa33' : '#ccccdd' }}>
+                  {obstaclesEnabled ? '障碍物已开启' : '障碍物已关闭'}
+                </div>
+                <div className="text-[7px] md:text-[8px]" style={{ color: '#8888aa' }}>
+                  {obstaclesEnabled ? '赛道上会出现移动障碍物' : '无障碍物，专注竞速'}
+                </div>
+              </div>
+              {obstaclesEnabled && <Check className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#00ff88' }} />}
+            </div>
+          </button>
         </div>
 
         <div className="w-full max-w-2xl">

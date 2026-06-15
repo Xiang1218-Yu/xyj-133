@@ -40,6 +40,7 @@ interface GameState {
   selectedSkinP1: string | null;
   selectedSkinP2: string | null;
   lastEarnedCoins: number;
+  obstaclesEnabled: boolean;
   setPhase: (p: GamePhase) => void;
   selectCarP1: (id: number) => void;
   selectCarP2: (id: number) => void;
@@ -96,6 +97,8 @@ interface GameState {
   recordRaceResult: (rank: number, rewardCoins: number) => void;
   getUpgradedCarStats: (carTemplateId: number) => { maxSpeed: number; acceleration: number; handling: number; friction: number };
   applySkinToCustomization: (player: 1 | 2, skinId: string | null) => void;
+  toggleObstacles: () => void;
+  setObstaclesEnabled: (enabled: boolean) => void;
 }
 
 export const TOTAL_LAPS = 3;
@@ -157,6 +160,7 @@ const saveProgress = (state: GameState) => {
       ownedSkins: state.ownedSkins,
       selectedSkinP1: state.selectedSkinP1,
       selectedSkinP2: state.selectedSkinP2,
+      obstaclesEnabled: state.obstaclesEnabled,
     };
     localStorage.setItem('pixel_kart_progress', JSON.stringify(progress));
   } catch {
@@ -204,6 +208,7 @@ export const useGameStore = create<GameState>((set, get) => {
   selectedSkinP1: savedProgress.selectedSkinP1 ?? null,
   selectedSkinP2: savedProgress.selectedSkinP2 ?? null,
   lastEarnedCoins: 0,
+  obstaclesEnabled: savedProgress.obstaclesEnabled ?? true,
 
   setPhase: (p) => set({ phase: p }),
   selectCarP1: (id) => set({ selectedCarIdP1: id, customizationP1: createDefaultCustomization(CAR_TEMPLATES[id]) }),
@@ -643,5 +648,17 @@ export const useGameStore = create<GameState>((set, get) => {
       set((state) => ({ customizationP2: { ...state.customizationP2, ...patch } }));
     }
   },
+
+  toggleObstacles: () => set((state) => {
+    const newState = { obstaclesEnabled: !state.obstaclesEnabled };
+    saveProgress({ ...state, ...newState });
+    return newState;
+  }),
+
+  setObstaclesEnabled: (enabled) => set((state) => {
+    const newState = { obstaclesEnabled: enabled };
+    saveProgress({ ...state, ...newState });
+    return newState;
+  }),
   };
 });
